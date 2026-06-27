@@ -134,3 +134,16 @@ input, textarea, select {
 .emoji-pop {
   animation: emoji-pop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+/* Assistente IA: três pontinhos de loading */
+@keyframes dot-pulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40%           { transform: scale(1);   opacity: 1;   }
+}
+.dot-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-2);
+  animation: dot-pulse 1.4s ease-in-out infinite;
+}

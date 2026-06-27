@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LayoutDashboard, ListChecks, Wallet, PieChart, Target, User, LogOut } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { Assistente } from '../shared/Assistente'
 
 const navItems = [
   { to: '/',           label: 'Dashboard',  icon: LayoutDashboard },
@@ -209,6 +210,7 @@ export default function AppLayout() {
       </main>
 
       <BottomNav />
+      <Assistente />
     </div>
   )
 }
