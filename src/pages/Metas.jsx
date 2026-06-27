@@ -43,7 +43,7 @@ const inputStyle = {
   borderRadius:  10,
   padding:       '9px 12px',
   color:         'var(--color-text-1)',
-  fontSize:      14,
+  fontSize:      16,
   width:         '100%',
   outline:       'none',
   fontFamily:    'inherit',

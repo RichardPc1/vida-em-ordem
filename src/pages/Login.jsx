@@ -43,7 +43,7 @@ function Field({ id, label, type, value, onChange, placeholder, autoComplete }) 
           borderRadius: 10,
           padding:      '10px 14px',
           color:        'var(--color-text-1)',
-          fontSize:     14,
+          fontSize:     16,
           outline:      'none',
           width:        '100%',
           transition:   'border-color 0.15s',
@@ -86,8 +86,8 @@ export default function Login() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center p-4"
-      style={{ background: 'var(--color-bg)' }}
+      className="flex items-center justify-center p-4"
+      style={{ background: 'var(--color-bg)', minHeight: '100dvh', overflowY: 'auto' }}
     >
       <div
         className="w-full"
