@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ─── Shadcn/ui variables (formato HSL) ─────────────────────────────── */
+    --background:          0 0% 6%;       /* #0F0F0F */
+    --foreground:          0 0% 95%;      /* #F2F2F2 */
+    --card:                0 0% 10%;      /* #1A1A1A */
+    --card-foreground:     0 0% 95%;
+    --popover:             0 0% 10%;
+    --popover-foreground:  0 0% 95%;
+    --primary:             75 84% 62%;    /* #C8F04D */
+    --primary-foreground:  0 0% 6%;
+    --secondary:           0 0% 14%;      /* #242424 */
+    --secondary-foreground:0 0% 95%;
+    --muted:               0 0% 10%;
+    --muted-foreground:    0 0% 54%;      /* #8A8A8A */
+    --accent:              75 84% 62%;
+    --accent-foreground:   0 0% 6%;
+    --destructive:         0 100% 67%;    /* #FF5C5C */
+    --destructive-foreground: 0 0% 95%;
+    --border:              0 0% 18%;      /* #2E2E2E */
+    --input:               0 0% 14%;
+    --ring:                75 84% 62%;
+    --radius:              10px;
+
+    /* ─── Design system — variáveis customizadas ─────────────────────────── */
+    --color-bg:        #0F0F0F;
+    --color-surface:   #1A1A1A;
+    --color-surface-2: #242424;
+    --color-border:    #2E2E2E;
+    --color-accent:    #C8F04D;
+    --color-accent-2:  #A8D438;
+    --color-text-1:    #F2F2F2;
+    --color-text-2:    #8A8A8A;
+    --color-text-3:    #4A4A4A;
+    --color-danger:    #FF5C5C;
+    --color-success:   #4ECDC4;
+    --color-warning:   #FFB830;
+  }
+
+  * {
+    box-sizing: border-box;
+    border-color: var(--color-border);
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: var(--color-bg);
+    color: var(--color-text-1);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Valores monetários, contadores e badges numéricos */
+  .font-mono,
+  [data-mono] {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Hover nos itens da sidebar — só em itens não-ativos */
+.sidebar-nav-item:hover:not([aria-current="page"]) {
+  background: var(--color-surface-2) !important;
+  color: var(--color-text-1) !important;
+}
+
+/* Scroll horizontal sem scrollbar visível */
+.hide-scrollbar { scrollbar-width: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Botão primário de login */
+.login-btn:hover:not(:disabled) {
+  background: var(--color-accent-2) !important;
+}
+
+/* Remove outline padrão dos inputs do login */
+.login-field:focus {
+  outline: none;
+}
+
+/* ─── Animações globais ──────────────────────────────────────────────────── */
+
+/* Modal: fade in + slide up */
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
+/* Checkbox check: scale + opacity */
+@keyframes check-pop {
+  0%   { transform: scale(0);    opacity: 0; }
+  60%  { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
+/* Toast slide in da direita */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0);    }
+}
+
+/* Classe usada no ícone de check do TaskCheckbox */
+.check-icon-anim {
+  animation: check-pop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Classe aplicada ao DialogContent do shadcn/ui */
+.modal-anim {
+  animation: modal-in 0.2s ease forwards;
+}
+
+/* Progresso: a transição já está inline (width 0.4s ease) — sem classe extra */
+
+/* FilterPill transição — garante suavidade no active */
+.filter-pill-transition {
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease !important;
+}

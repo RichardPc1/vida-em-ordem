@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#0F0F0F"/>
+  <rect width="192" height="192" rx="40" fill="#1A1A1A"/>
+  <!-- Borda sutil -->
+  <rect x="1" y="1" width="190" height="190" rx="39" fill="none" stroke="#2E2E2E" stroke-width="2"/>
+  <!-- Texto VE centralizado -->
+  <text
+    x="96" y="118"
+    font-family="'Arial', sans-serif"
+    font-size="72"
+    font-weight="700"
+    fill="#C8F04D"
+    text-anchor="middle"
+    letter-spacing="-2"
+  >VE</text>
+</svg>
