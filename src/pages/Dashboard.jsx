@@ -1,13 +1,24 @@
+import { useState } from 'react'
 import {
   BarChart, Bar, XAxis, Tooltip,
   CartesianGrid, ResponsiveContainer,
 } from 'recharts'
+import { toast } from 'sonner'
 import { useAuth }      from '../contexts/AuthContext'
 import { useDashboard } from '../hooks/useDashboard'
+import { useHumor, HUMOR_CONFIG } from '../hooks/useHumor'
 import { fmtCurrency, fmtDate, getSaudacao } from '../lib/utils'
 import { Skeleton }      from '../components/shared/Skeleton'
 import { PriorityBadge } from '../components/shared/PriorityBadge'
 import { PersonBadge }   from '../components/shared/PersonBadge'
+
+const HUMOR_CORES = {
+  1: 'var(--color-danger)',
+  2: 'var(--color-warning)',
+  3: 'var(--color-text-2)',
+  4: 'var(--color-success)',
+  5: 'var(--color-accent)',
+}
 
 function Card({ children, className = '', style = {} }) {
   return (
@@ -193,8 +204,199 @@ function ChartCard({ dados, loading }) {
   )
 }
 
+function HumorPanel({ registros, nomeUsuario, onRegistrar, animandoHumor, isMe }) {
+  const hoje = new Date()
+  const anoAtual = hoje.getFullYear()
+  const mesAtual = hoje.getMonth()
+  const hojeStr  = `${anoAtual}-${String(mesAtual + 1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`
+
+  const registroHoje = registros.find(r => r.data === hojeStr) ?? null
+
+  const media = registros.length
+    ? Number((registros.reduce((s, r) => s + Number(r.humor), 0) / registros.length).toFixed(1))
+    : null
+
+  const diasNoMes = new Date(anoAtual, mesAtual + 1, 0).getDate()
+  const nomeMes   = hoje.toLocaleDateString('pt-BR', { month: 'long' })
+
+  const mapaHumor = {}
+  registros.forEach(r => { mapaHumor[r.data] = r.humor })
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {nomeUsuario && (
+        <p style={{
+          fontSize: 12, fontWeight: 600, color: 'var(--color-text-2)',
+          textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0,
+        }}>
+          {nomeUsuario}
+        </p>
+      )}
+
+      {registroHoje ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 36, lineHeight: 1 }}>
+            {HUMOR_CONFIG[registroHoje.humor].emoji}
+          </span>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text-1)', margin: 0 }}>
+              {HUMOR_CONFIG[registroHoje.humor].label}
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--color-text-2)', margin: '2px 0 0' }}>
+              Registrado hoje
+            </p>
+          </div>
+        </div>
+      ) : isMe ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <p style={{ fontSize: 13, color: 'var(--color-text-2)', margin: 0 }}>
+            Como você está hoje?
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[1, 2, 3, 4, 5].map(nivel => (
+              <button
+                key={nivel}
+                onClick={() => onRegistrar(nivel)}
+                className={animandoHumor === nivel ? 'emoji-pop' : ''}
+                title={HUMOR_CONFIG[nivel].label}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: 4,
+                  cursor: 'pointer',
+                  fontSize: 40,
+                  lineHeight: 1,
+                  borderRadius: 8,
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-surface-2)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                {HUMOR_CONFIG[nivel].emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p style={{ fontSize: 13, color: 'var(--color-text-3)', margin: 0, fontStyle: 'italic' }}>
+          Não registrou hoje
+        </p>
+      )}
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        {Array.from({ length: diasNoMes }, (_, i) => {
+          const dia    = i + 1
+          const diaStr = `${anoAtual}-${String(mesAtual + 1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`
+          const humor  = mapaHumor[diaStr]
+          const isFuture = dia > hoje.getDate()
+          return (
+            <div
+              key={dia}
+              title={humor ? `Dia ${dia}: ${HUMOR_CONFIG[humor].label}` : `Dia ${dia}`}
+              style={{
+                width:        20,
+                height:       20,
+                borderRadius: '50%',
+                background:   isFuture
+                  ? 'transparent'
+                  : humor
+                    ? HUMOR_CORES[humor]
+                    : 'var(--color-surface-2)',
+                border:       isFuture ? '1px solid var(--color-border)' : 'none',
+                opacity:      isFuture ? 0.3 : 1,
+                flexShrink:   0,
+                transition:   'background 0.2s',
+              }}
+            />
+          )
+        })}
+      </div>
+
+      {media !== null && (
+        <p style={{ fontSize: 13, color: 'var(--color-text-2)', margin: 0 }}>
+          Média de {nomeMes}:{' '}
+          <span style={{ color: 'var(--color-text-1)', fontWeight: 500 }}>
+            {HUMOR_CONFIG[Math.round(media)]?.emoji} {media}
+          </span>
+        </p>
+      )}
+    </div>
+  )
+}
+
+function HumorCard({ isAdmin, user, profile }) {
+  const {
+    registros, registrosOutro, outroProfile,
+    registrarHumor, loading,
+  } = useHumor()
+
+  const [animandoHumor, setAnimandoHumor] = useState(null)
+
+  async function handleRegistrar(nivel) {
+    setAnimandoHumor(nivel)
+    setTimeout(() => setAnimandoHumor(null), 300)
+    try {
+      await registrarHumor(nivel)
+      toast.success('Humor registrado!', { style: { borderColor: 'var(--color-accent)' } })
+    } catch {
+      toast.error('Erro ao registrar humor', { style: { borderColor: 'var(--color-danger)' } })
+    }
+  }
+
+  return (
+    <Card>
+      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-1)', margin: '0 0 20px' }}>
+        Humor do dia
+      </p>
+
+      {loading ? (
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="animate-pulse" style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'var(--color-surface-2)',
+            }} />
+          ))}
+        </div>
+      ) : isAdmin && outroProfile ? (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 24,
+        }}>
+          <HumorPanel
+            registros={registros}
+            nomeUsuario={profile?.nome?.split(' ')[0] ?? 'Você'}
+            onRegistrar={handleRegistrar}
+            animandoHumor={animandoHumor}
+            isMe={true}
+          />
+          <div style={{ borderLeft: '1px solid var(--color-border)', paddingLeft: 24 }}>
+            <HumorPanel
+              registros={registrosOutro}
+              nomeUsuario={outroProfile.nome?.split(' ')[0]}
+              onRegistrar={null}
+              animandoHumor={null}
+              isMe={false}
+            />
+          </div>
+        </div>
+      ) : (
+        <HumorPanel
+          registros={registros}
+          nomeUsuario={null}
+          onRegistrar={handleRegistrar}
+          animandoHumor={animandoHumor}
+          isMe={true}
+        />
+      )}
+    </Card>
+  )
+}
+
 export default function Dashboard() {
-  const { profile, isAdmin } = useAuth()
+  const { user, profile, isAdmin } = useAuth()
   const { entradas, saidas, saldo, tarefasPendentes, proximasTarefas, dadosGrafico, loading, error } = useDashboard()
 
   const primeiroNome  = profile?.nome?.split(' ')[0] ?? 'Usuário'
@@ -252,6 +454,8 @@ export default function Dashboard() {
           mono={false}
         />
       </div>
+
+      <HumorCard isAdmin={isAdmin} user={user} profile={profile} />
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
         <ChartCard dados={dadosGrafico} loading={loading} />
