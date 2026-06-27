@@ -120,5 +120,5 @@ export function useDashboard() {
     }
   }
 
-  return state
+  return { ...state, refetch: fetchData }
 }

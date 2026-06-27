@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { MessageCircle, Send, X } from 'lucide-react'
+import { MessageCircle, Send, X, Mic, MicOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import { fmtCurrency } from '../../lib/utils'
+import { fmtCurrency, getNomeExibicao } from '../../lib/utils'
 import { processarComando } from '../../lib/assistente'
 
 function dataHoje() {
@@ -16,23 +16,58 @@ export function Assistente() {
   const [aberto, setAberto]         = useState(false)
   const [input, setInput]           = useState('')
   const [carregando, setCarregando] = useState(false)
+  const [gravando, setGravando]     = useState(false)
+  const [interimText, setInterimText] = useState('')
   const [msgs, setMsgs]             = useState([
     { id: 'welcome', role: 'assistant', text: 'Olá! Como posso te ajudar?' },
   ])
-  const bottomRef   = useRef(null)
-  const textareaRef = useRef(null)
+
+  const bottomRef      = useRef(null)
+  const textareaRef    = useRef(null)
+  const recognitionRef = useRef(null)
+  const suportaAudio   = typeof window !== 'undefined' &&
+    !!(window.SpeechRecognition || window.webkitSpeechRecognition)
 
   // Atualiza saudação quando profile carrega
   useEffect(() => {
-    if (!profile?.nome) return
-    const base  = profile.nome.includes('@') ? profile.nome.split('@')[0] : profile.nome.split(' ')[0]
-    const nome  = base.charAt(0).toUpperCase() + base.slice(1)
+    const nome = getNomeExibicao(profile?.nome)
+    if (!nome) return
     setMsgs(m =>
       m[0]?.id === 'welcome'
         ? [{ ...m[0], text: `Olá, ${nome}! Como posso te ajudar?` }, ...m.slice(1)]
         : m
     )
   }, [profile?.nome])
+
+  // Configura Web Speech API
+  useEffect(() => {
+    if (!suportaAudio) return
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const r  = new SR()
+    r.lang            = 'pt-BR'
+    r.continuous      = false
+    r.interimResults  = true
+
+    r.onresult = (e) => {
+      let interim = ''
+      let final   = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final   += e.results[i][0].transcript
+        else                      interim += e.results[i][0].transcript
+      }
+      if (final) {
+        setInput(prev => (prev ? prev + ' ' : '') + final.trim())
+        setInterimText('')
+      } else {
+        setInterimText(interim)
+      }
+    }
+    r.onend   = () => { setGravando(false); setInterimText('') }
+    r.onerror = () => { setGravando(false); setInterimText('') }
+
+    recognitionRef.current = r
+    return () => r.abort()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll automático para a última mensagem
   useEffect(() => {
@@ -44,8 +79,19 @@ export function Assistente() {
     if (aberto) setTimeout(() => textareaRef.current?.focus(), 320)
   }, [aberto])
 
+  function toggleGravacao() {
+    if (!recognitionRef.current) return
+    if (gravando) {
+      recognitionRef.current.stop()
+    } else {
+      setInterimText('')
+      recognitionRef.current.start()
+      setGravando(true)
+    }
+  }
+
   async function buildContexto() {
-    const hoje  = new Date()
+    const hoje   = new Date()
     const inicio = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`
     const fim    = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)
     const fimStr = `${fim.getFullYear()}-${String(fim.getMonth() + 1).padStart(2, '0')}-${String(fim.getDate()).padStart(2, '0')}`
@@ -71,7 +117,7 @@ export function Assistente() {
     const saidas    = todosLanc.filter(l => l.tipo === 'saida').reduce((s, l) => s + Number(l.valor), 0)
 
     return {
-      nomeUsuario:        profile?.nome?.split(' ')[0] ?? 'Usuário',
+      nomeUsuario:        getNomeExibicao(profile?.nome) ?? 'Usuário',
       dataAtual:          new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
       entradas:           fmtCurrency(entradas),
       saidas:             fmtCurrency(saidas),
@@ -126,6 +172,9 @@ export function Assistente() {
     const texto = input.trim()
     if (!texto || carregando) return
 
+    // Para gravação se estiver ativa
+    if (gravando) recognitionRef.current?.stop()
+
     setInput('')
     setMsgs(m => [...m, { id: Date.now(), role: 'user', text: texto }])
     setCarregando(true)
@@ -174,7 +223,7 @@ export function Assistente() {
       {/* FAB — mobile: acima do BottomNav (80px); desktop: 32px da borda */}
       <button
         onClick={() => setAberto(v => !v)}
-        className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-50"
+        className="fixed bottom-[88px] right-4 md:bottom-8 md:right-8 z-40"
         style={{
           width:          56,
           height:         56,
@@ -209,16 +258,10 @@ export function Assistente() {
         }}
       >
         {/* Header */}
-        <div
-          style={{
-            display:        'flex',
-            alignItems:     'center',
-            justifyContent: 'space-between',
-            padding:        '16px 20px',
-            borderBottom:   '1px solid var(--color-border)',
-            flexShrink:     0,
-          }}
-        >
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 20px', borderBottom: '1px solid var(--color-border)', flexShrink: 0,
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-accent)' }} />
             <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--color-text-1)' }}>
@@ -228,9 +271,9 @@ export function Assistente() {
           <button
             onClick={() => setAberto(false)}
             style={{
-              background: 'transparent', border: 'none',
-              padding: 4, borderRadius: 6, cursor: 'pointer',
-              color: 'var(--color-text-2)', display: 'flex', alignItems: 'center',
+              background: 'transparent', border: 'none', padding: 4,
+              borderRadius: 6, cursor: 'pointer', color: 'var(--color-text-2)',
+              display: 'flex', alignItems: 'center',
             }}
           >
             <X size={18} />
@@ -238,30 +281,26 @@ export function Assistente() {
         </div>
 
         {/* Lista de mensagens */}
-        <div
-          style={{
-            flex: 1, overflowY: 'auto',
-            padding: '16px 16px 8px',
-            display: 'flex', flexDirection: 'column', gap: 10,
-          }}
-        >
+        <div style={{
+          flex: 1, overflowY: 'auto',
+          padding: '16px 16px 8px',
+          display: 'flex', flexDirection: 'column', gap: 10,
+        }}>
           {msgs.map(msg => (
             <div
               key={msg.id}
               style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}
             >
-              <div
-                style={{
-                  maxWidth:     '80%',
-                  padding:      '10px 14px',
-                  borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                  background:   msg.role === 'user' ? 'var(--color-accent)' : 'var(--color-surface-2)',
-                  color:        msg.role === 'user' ? '#0F0F0F' : 'var(--color-text-1)',
-                  fontSize:     14,
-                  lineHeight:   1.5,
-                  whiteSpace:   'pre-wrap',
-                }}
-              >
+              <div style={{
+                maxWidth:     '80%',
+                padding:      '10px 14px',
+                borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                background:   msg.role === 'user' ? 'var(--color-accent)' : 'var(--color-surface-2)',
+                color:        msg.role === 'user' ? '#0F0F0F' : 'var(--color-text-1)',
+                fontSize:     14,
+                lineHeight:   1.5,
+                whiteSpace:   'pre-wrap',
+              }}>
                 {msg.text}
               </div>
             </div>
@@ -270,13 +309,11 @@ export function Assistente() {
           {/* Três pontinhos de loading */}
           {carregando && (
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-              <div
-                style={{
-                  padding: '12px 16px', borderRadius: '16px 16px 16px 4px',
-                  background: 'var(--color-surface-2)',
-                  display: 'flex', gap: 5, alignItems: 'center',
-                }}
-              >
+              <div style={{
+                padding: '12px 16px', borderRadius: '16px 16px 16px 4px',
+                background: 'var(--color-surface-2)',
+                display: 'flex', gap: 5, alignItems: 'center',
+              }}>
                 {[0, 1, 2].map(i => (
                   <div key={i} className="dot-pulse" style={{ animationDelay: `${i * 0.2}s` }} />
                 ))}
@@ -288,50 +325,99 @@ export function Assistente() {
         </div>
 
         {/* Input */}
-        <div
-          style={{
-            padding: '12px 16px 16px',
-            borderTop: '1px solid var(--color-border)',
-            display: 'flex', gap: 10, alignItems: 'flex-end', flexShrink: 0,
-          }}
-        >
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ex: adiciona R$50 de almoço hoje..."
-            rows={1}
-            disabled={carregando}
-            style={{
-              flex:        1,
-              background:  'var(--color-surface-2)',
-              border:      '1px solid var(--color-border)',
-              borderRadius: 12,
-              padding:     '10px 12px',
-              color:       'var(--color-text-1)',
-              fontFamily:  'inherit',
-              outline:     'none',
-              resize:      'none',
-              lineHeight:  1.4,
-              maxHeight:   80,
-              overflowY:   'auto',
-            }}
-          />
-          <button
-            onClick={handleEnviar}
-            disabled={!input.trim() || carregando}
-            style={{
-              width: 40, height: 40, borderRadius: 12, border: 'none',
-              background:     input.trim() && !carregando ? 'var(--color-accent)' : 'var(--color-surface-2)',
-              color:          input.trim() && !carregando ? '#0F0F0F' : 'var(--color-text-3)',
-              cursor:         input.trim() && !carregando ? 'pointer' : 'not-allowed',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, transition: 'all 0.15s',
-            }}
-          >
-            <Send size={17} />
-          </button>
+        <div style={{
+          padding: '12px 16px 16px',
+          borderTop: '1px solid var(--color-border)',
+          display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={gravando ? 'Ouvindo...' : 'Ex: adiciona R$50 de almoço hoje...'}
+              rows={1}
+              disabled={carregando}
+              style={{
+                flex:        1,
+                background:  'var(--color-surface-2)',
+                border:      `1px solid ${gravando ? 'var(--color-danger)' : 'var(--color-border)'}`,
+                borderRadius: 12,
+                padding:     '10px 12px',
+                color:       'var(--color-text-1)',
+                fontFamily:  'inherit',
+                outline:     'none',
+                resize:      'none',
+                lineHeight:  1.4,
+                maxHeight:   80,
+                overflowY:   'auto',
+                transition:  'border-color 0.15s',
+              }}
+            />
+
+            {/* Botão microfone */}
+            {suportaAudio && (
+              <button
+                onClick={toggleGravacao}
+                disabled={carregando}
+                className={gravando ? 'mic-pulse' : ''}
+                style={{
+                  width:          40,
+                  height:         40,
+                  borderRadius:   12,
+                  border:         'none',
+                  background:     gravando ? '#FF5C5C' : 'var(--color-surface-2)',
+                  color:          gravando ? '#fff'    : 'var(--color-text-2)',
+                  cursor:         carregando ? 'not-allowed' : 'pointer',
+                  display:        'flex',
+                  alignItems:     'center',
+                  justifyContent: 'center',
+                  flexShrink:     0,
+                  transition:     'background 0.15s, color 0.15s',
+                }}
+                aria-label={gravando ? 'Parar gravação' : 'Gravar áudio'}
+              >
+                {gravando ? <MicOff size={17} /> : <Mic size={17} />}
+              </button>
+            )}
+
+            {/* Botão enviar */}
+            <button
+              onClick={handleEnviar}
+              disabled={!input.trim() || carregando}
+              style={{
+                width:          40,
+                height:         40,
+                borderRadius:   12,
+                border:         'none',
+                background:     input.trim() && !carregando ? 'var(--color-accent)' : 'var(--color-surface-2)',
+                color:          input.trim() && !carregando ? '#0F0F0F' : 'var(--color-text-3)',
+                cursor:         input.trim() && !carregando ? 'pointer' : 'not-allowed',
+                display:        'flex',
+                alignItems:     'center',
+                justifyContent: 'center',
+                flexShrink:     0,
+                transition:     'all 0.15s',
+              }}
+            >
+              <Send size={17} />
+            </button>
+          </div>
+
+          {/* Transcrição em tempo real */}
+          {interimText && (
+            <p style={{
+              margin:     0,
+              fontSize:   12,
+              fontStyle:  'italic',
+              color:      'var(--color-text-2)',
+              lineHeight: 1.4,
+              paddingLeft: 4,
+            }}>
+              {interimText}…
+            </p>
+          )}
         </div>
       </div>
     </>

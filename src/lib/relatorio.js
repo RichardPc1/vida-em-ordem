@@ -1,5 +1,5 @@
-import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 // ---------------------------------------------------------------------------
 // Paleta — hex hardcoded (CSS vars não funcionam fora do browser DOM)
@@ -63,6 +63,7 @@ function needsNewPage(doc, y, minSpace = 60) {
 // ---------------------------------------------------------------------------
 
 export function gerarRelatorioPDF(mes, ano, dados) {
+  try {
   const { lancamentos = [], orcamentos = [], metas = [], perfil, totais, isAdmin } = dados
   const nomeMes  = MESES[mes - 1] ?? `Mês ${mes}`
   const nomeArq  = `VidaEmOrdem_${nomeMes}_${ano}.pdf`
@@ -143,6 +144,15 @@ export function gerarRelatorioPDF(mes, ano, dados) {
 
   y += boxH + 14
 
+  // Mensagem quando não há lançamentos no período
+  if (lancamentos.length === 0) {
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...C.text2)
+    doc.text('Nenhum lançamento no período.', M, y)
+    y += 16
+  }
+
   // -------------------------------------------------------------------------
   // Seção 1: Gastos por Categoria
   // -------------------------------------------------------------------------
@@ -174,7 +184,7 @@ export function gerarRelatorioPDF(mes, ano, dados) {
       totalOrcado > 0 ? `${Math.round((totalGasto / totalOrcado) * 100)}%` : '–',
     ])
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head: [['Categoria', 'Orçado', 'Gasto', 'Diferença', '%']],
       body: orcRows,
@@ -247,7 +257,7 @@ export function gerarRelatorioPDF(mes, ano, dados) {
       ]
     })
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head: [['Data', 'Descrição', 'Categoria', 'Valor']],
       body: lancRows,
@@ -301,7 +311,7 @@ export function gerarRelatorioPDF(mes, ano, dados) {
       return [m.titulo, fmt(m.valor_alvo), fmt(m.valor_atual), `${Math.round(prog)}%`, prazoFmt]
     })
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head: [['Meta', 'Alvo', 'Atual', 'Progresso', 'Prazo']],
       body: metaRows,
@@ -361,7 +371,7 @@ export function gerarRelatorioPDF(mes, ano, dados) {
       fmt(p.entradas - p.saidas),
     ])
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head: [['Pessoa', 'Entradas', 'Saídas', 'Saldo']],
       body: pessoaRows,
@@ -421,4 +431,8 @@ export function gerarRelatorioPDF(mes, ano, dados) {
   // -------------------------------------------------------------------------
 
   doc.save(nomeArq)
+  } catch (err) {
+    console.error('[relatorio] Erro ao gerar PDF:', err)
+    throw err
+  }
 }

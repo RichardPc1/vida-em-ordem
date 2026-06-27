@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Plus, ChevronLeft, ChevronRight, Trash2, FileDown, Loader2 } from 'lucide-react'
 import {
@@ -15,6 +15,7 @@ import {
 import { supabase } from '../lib/supabase'
 import { fmtCurrency } from '../lib/utils'
 import { gerarRelatorioPDF } from '../lib/relatorio'
+import { usePullToRefresh, PullRefreshIndicator } from '../hooks/usePullToRefresh'
 import {
   Dialog,
   DialogContent,
@@ -107,9 +108,11 @@ function SeletorMes({ mes, onAnterior, onProximo }) {
         color: 'var(--color-text-1)',
         minWidth: 130,
         textAlign: 'center',
-        textTransform: 'capitalize',
       }}>
-        {mes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+        {(() => {
+          const raw = mes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+          return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase()
+        })()}
       </span>
       <button
         style={btnStyle}
@@ -469,6 +472,8 @@ function LancamentoItem({ lancamento: l, isAdmin, isLast, onDelete }) {
           alignItems: 'center',
           flexShrink: 0,
           transition: 'all 0.15s',
+          position: 'relative',
+          zIndex: 50,
         }}
         onMouseEnter={e => { if (!confirmando) e.currentTarget.style.color = 'var(--color-danger)' }}
         onMouseLeave={e => { if (!confirmando) e.currentTarget.style.color = 'var(--color-text-3)' }}
@@ -620,6 +625,8 @@ export default function Financeiro() {
   } = useLancamentos()
 
   const [mes, setMes]                     = useState(new Date())
+  const refreshFin = useCallback(() => fetchLancamentos({ mes }), [fetchLancamentos, mes])
+  const { isRefreshing, pullY } = usePullToRefresh(refreshFin)
   const [gerandoPDF, setGerandoPDF]       = useState(false)
   const [modalOpen, setModalOpen]         = useState(false)
   const [deletandoLanc, setDeletandoLanc] = useState(null)
@@ -811,6 +818,7 @@ export default function Financeiro() {
 
   return (
     <div className="flex flex-col gap-6">
+      <PullRefreshIndicator isRefreshing={isRefreshing} pullY={pullY} />
 
       {/* ------------------------------------------------------------------ */}
       {/* Header                                                               */}

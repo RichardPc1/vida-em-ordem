@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { usePullToRefresh, PullRefreshIndicator } from '../hooks/usePullToRefresh'
 import {
   ChevronLeft, ChevronRight, Settings,
   ShoppingCart, Car, Home, Heart, Smile, GraduationCap, Shirt, MoreHorizontal,
@@ -281,6 +282,9 @@ export default function Orcamento() {
     loading, error, fetchOrcamentos, salvarOrcamentos,
   } = useOrcamento()
 
+  const refreshOrc = useCallback(() => fetchOrcamentos(mes), [fetchOrcamentos, mes])
+  const { isRefreshing, pullY } = usePullToRefresh(refreshOrc)
+
   // Refetch sempre que o mês selecionado mudar
   useEffect(() => {
     fetchOrcamentos(mes)
@@ -349,6 +353,7 @@ export default function Orcamento() {
 
   return (
     <div className="flex flex-col gap-6">
+      <PullRefreshIndicator isRefreshing={isRefreshing} pullY={pullY} />
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div style={{

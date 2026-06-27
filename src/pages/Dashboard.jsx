@@ -7,7 +7,8 @@ import { toast } from 'sonner'
 import { useAuth }      from '../contexts/AuthContext'
 import { useDashboard } from '../hooks/useDashboard'
 import { useHumor, HUMOR_CONFIG } from '../hooks/useHumor'
-import { fmtCurrency, fmtDate, getSaudacao } from '../lib/utils'
+import { fmtCurrency, fmtDate, getSaudacao, getNomeExibicao } from '../lib/utils'
+import { usePullToRefresh, PullRefreshIndicator } from '../hooks/usePullToRefresh'
 import { Skeleton }      from '../components/shared/Skeleton'
 import { PriorityBadge } from '../components/shared/PriorityBadge'
 import { PersonBadge }   from '../components/shared/PersonBadge'
@@ -18,13 +19,6 @@ const HUMOR_CORES = {
   3: 'var(--color-text-2)',
   4: 'var(--color-success)',
   5: 'var(--color-accent)',
-}
-
-// Extrai primeiro nome de um campo que pode ser nome real ou email
-function getNomeExibicao(nome) {
-  if (!nome) return null
-  const s = nome.includes('@') ? nome.split('@')[0] : nome.split(' ')[0]
-  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 function Card({ children, className = '', style = {} }) {
@@ -416,12 +410,16 @@ function HumorCard({ isAdmin, user, profile }) {
 
 export default function Dashboard() {
   const { user, profile, isAdmin } = useAuth()
-  const { entradas, saidas, saldo, tarefasPendentes, proximasTarefas, dadosGrafico, loading, error } = useDashboard()
+  const { entradas, saidas, saldo, tarefasPendentes, proximasTarefas, dadosGrafico, loading, error, refetch } = useDashboard()
+  const { isRefreshing, pullY } = usePullToRefresh(refetch)
 
-  const primeiroNome  = profile?.nome?.split(' ')[0] ?? 'Usuário'
-  const dataFormatada = new Date().toLocaleDateString('pt-BR', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-  })
+  const primeiroNome  = getNomeExibicao(profile?.nome) ?? 'Usuário'
+  const dataFormatada = (() => {
+    const raw = new Date().toLocaleDateString('pt-BR', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    })
+    return raw.replace(/\b\w/g, (c, offset) => offset === 0 ? c.toUpperCase() : c.toLowerCase())
+  })()
 
   if (error) return (
     <div style={{ padding: '40px 0', textAlign: 'center' }}>
@@ -442,12 +440,13 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-6">
+      <PullRefreshIndicator isRefreshing={isRefreshing} pullY={pullY} />
 
       <div>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-text-1)', margin: 0, lineHeight: 1.2 }}>
           {getSaudacao()}, {primeiroNome}
         </h1>
-        <p style={{ fontSize: 14, color: 'var(--color-text-2)', margin: '4px 0 0', textTransform: 'capitalize' }}>
+        <p style={{ fontSize: 14, color: 'var(--color-text-2)', margin: '4px 0 0' }}>
           {dataFormatada}
         </p>
       </div>

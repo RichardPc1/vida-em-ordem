@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LayoutDashboard, ListChecks, Wallet, PieChart, Target, User, LogOut } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Assistente } from '../shared/Assistente'
+import { getNomeExibicao } from '../../lib/utils'
 
 const navItems = [
   { to: '/',           label: 'Dashboard',  icon: LayoutDashboard },
@@ -24,7 +25,7 @@ const pageTitles = {
 }
 
 function UserAvatar({ profile, size = 32 }) {
-  const initial = (profile?.nome ?? profile?.email ?? '?')[0].toUpperCase()
+  const initial = (getNomeExibicao(profile?.nome ?? profile?.email) ?? '?')[0].toUpperCase()
   return (
     <div
       className="flex items-center justify-center rounded-full font-bold shrink-0 select-none"
@@ -101,7 +102,7 @@ function Sidebar({ profile, signOut }) {
               className="text-sm font-medium truncate"
               style={{ color: 'var(--color-text-1)' }}
             >
-              {profile?.nome ?? 'Usuário'}
+              {getNomeExibicao(profile?.nome) ?? 'Usuário'}
             </p>
             <p className="text-xs truncate" style={{ color: 'var(--color-text-2)' }}>
               {profile?.role === 'admin' ? 'Admin' : 'Membro'}

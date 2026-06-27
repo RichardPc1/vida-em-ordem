@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { usePullToRefresh, PullRefreshIndicator } from '../hooks/usePullToRefresh'
 import { toast } from 'sonner'
 import { Plus, MoreVertical, Rocket } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
@@ -522,7 +523,10 @@ export default function Metas() {
     calcularProgresso,
     calcularCountdown,
     fetchContribuicoes,
+    fetchMetas,
   } = useMetas()
+
+  const { isRefreshing, pullY } = usePullToRefresh(fetchMetas)
 
   const [tab, setTab] = useState('ativa')
 
@@ -748,6 +752,7 @@ export default function Metas() {
 
   return (
     <div className="flex flex-col gap-6">
+      <PullRefreshIndicator isRefreshing={isRefreshing} pullY={pullY} />
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

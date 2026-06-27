@@ -147,3 +147,12 @@ input, textarea, select {
   background: var(--color-text-2);
   animation: dot-pulse 1.4s ease-in-out infinite;
 }
+
+/* Assistente IA: pulso no botão de microfone ativo */
+@keyframes mic-pulse {
+  0%, 100% { opacity: 1;   }
+  50%       { opacity: 0.5; }
+}
+.mic-pulse {
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}

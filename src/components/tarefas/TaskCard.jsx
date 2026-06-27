@@ -129,6 +129,8 @@ export function TaskCard({ tarefa, isAdmin, userId, onToggle, onEdit, onDelete, 
           display:     'flex',
           alignItems:  'center',
           transition:  'color 0.15s, background 0.15s',
+          position:    'relative',
+          zIndex:      50,
         }}
         onMouseEnter={e => { if (!confirmando) e.currentTarget.style.color = 'var(--color-danger)' }}
         onMouseLeave={e => { if (!confirmando) e.currentTarget.style.color = 'var(--color-text-3)' }}

@@ -18,9 +18,11 @@ const inputStyle = {
   color:        'var(--color-text-1)',
   fontSize:     16,
   width:        '100%',
+  maxWidth:     '100%',
   outline:      'none',
   fontFamily:   'inherit',
   transition:   'border-color 0.15s',
+  boxSizing:    'border-box',
 }
 
 function FormField({ label, children }) {
@@ -44,6 +46,9 @@ function StyledSelect({ value, onValueChange, options }) {
         color:        'var(--color-text-1)',
         fontSize:     14,
         height:       38,
+        width:        '100%',
+        maxWidth:     '100%',
+        boxSizing:    'border-box',
       }}>
         <SelectValue />
       </SelectTrigger>
@@ -122,7 +127,9 @@ export function TaskModal({ open, onClose, onSalvar, editando, isAdmin, userId, 
         border:       '1px solid var(--color-border)',
         borderRadius: 16,
         maxWidth:     480,
-        padding:      28,
+        padding:      24,
+        overflowY:    'auto',
+        maxHeight:    '90vh',
       }}>
         <DialogHeader>
           <DialogTitle style={{ color: 'var(--color-text-1)', fontSize: 16, fontWeight: 600 }}>
@@ -154,7 +161,7 @@ export function TaskModal({ open, onClose, onSalvar, editando, isAdmin, userId, 
             />
           </FormField>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField label="Categoria">
               <StyledSelect value={form.categoria}
                 onValueChange={v => set('categoria', v)} options={CATEGORIAS} />
@@ -165,11 +172,7 @@ export function TaskModal({ open, onClose, onSalvar, editando, isAdmin, userId, 
             </FormField>
           </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: duasColunas ? '1fr 1fr' : '1fr',
-            gap: 12,
-          }}>
+          <div className={`grid gap-3 ${duasColunas ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
             <FormField label="Vencimento">
               <input
                 type="date" value={form.data_vencimento}

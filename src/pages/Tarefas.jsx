@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useAuth }    from '../contexts/AuthContext'
 import { useTarefas } from '../hooks/useTarefas'
 import { supabase }   from '../lib/supabase'
+import { usePullToRefresh, PullRefreshIndicator } from '../hooks/usePullToRefresh'
 import { FilterPill }              from '../components/tarefas/FilterPill'
 import { TaskCard }                from '../components/tarefas/TaskCard'
 import { TaskModal }               from '../components/tarefas/TaskModal'
@@ -43,8 +44,9 @@ export default function Tarefas() {
     return f
   }, [statusFiltro, prioridadeFiltro, pessoaFiltro])
 
-  const { tarefas, loading, error, criarTarefa, atualizarTarefa, deletarTarefa, concluirTarefa } =
+  const { tarefas, loading, error, fetchTarefas, criarTarefa, atualizarTarefa, deletarTarefa, concluirTarefa } =
     useTarefas(filtros)
+  const { isRefreshing, pullY } = usePullToRefresh(fetchTarefas)
 
   useEffect(() => {
     if (!isAdmin || !user) return
@@ -131,6 +133,7 @@ export default function Tarefas() {
 
   return (
     <div className="flex flex-col gap-6">
+      <PullRefreshIndicator isRefreshing={isRefreshing} pullY={pullY} />
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--color-text-1)', margin: 0 }}>

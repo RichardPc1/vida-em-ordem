@@ -24,9 +24,16 @@ export function fmtDate(str) {
 
 export function getSaudacao() {
   const h = new Date().getHours()
-  if (h < 12) return 'Bom dia'
-  if (h < 18) return 'Boa tarde'
+  if (h >= 5 && h < 12) return 'Bom dia'
+  if (h >= 12 && h < 18) return 'Boa tarde'
   return 'Boa noite'
+}
+
+// Extrai primeiro nome de um campo que pode ser nome real ou email
+export function getNomeExibicao(nome) {
+  if (!nome) return null
+  const base = nome.includes('@') ? nome.split('@')[0] : nome.split(' ')[0]
+  return base.charAt(0).toUpperCase() + base.slice(1)
 }
 
 export function isAtrasada(tarefa) {
