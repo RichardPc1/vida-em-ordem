@@ -20,6 +20,13 @@ const HUMOR_CORES = {
   5: 'var(--color-accent)',
 }
 
+// Extrai primeiro nome de um campo que pode ser nome real ou email
+function getNomeExibicao(nome) {
+  if (!nome) return null
+  const s = nome.includes('@') ? nome.split('@')[0] : nome.split(' ')[0]
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 function Card({ children, className = '', style = {} }) {
   return (
     <div className={className} style={{
@@ -223,13 +230,10 @@ function HumorPanel({ registros, nomeUsuario, onRegistrar, animandoHumor, isMe }
   registros.forEach(r => { mapaHumor[r.data] = r.humor })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
       {nomeUsuario && (
-        <p style={{
-          fontSize: 12, fontWeight: 600, color: 'var(--color-text-2)',
-          textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0,
-        }}>
+        <p style={{ fontSize: 13, color: 'var(--color-text-2)', margin: 0 }}>
           {nomeUsuario}
         </p>
       )}
@@ -284,33 +288,49 @@ function HumorPanel({ registros, nomeUsuario, onRegistrar, animandoHumor, isMe }
         </p>
       )}
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-        {Array.from({ length: diasNoMes }, (_, i) => {
-          const dia    = i + 1
-          const diaStr = `${anoAtual}-${String(mesAtual + 1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`
-          const humor  = mapaHumor[diaStr]
-          const isFuture = dia > hoje.getDate()
-          return (
-            <div
-              key={dia}
-              title={humor ? `Dia ${dia}: ${HUMOR_CONFIG[humor].label}` : `Dia ${dia}`}
-              style={{
-                width:        20,
-                height:       20,
-                borderRadius: '50%',
-                background:   isFuture
-                  ? 'transparent'
-                  : humor
-                    ? HUMOR_CORES[humor]
-                    : 'var(--color-surface-2)',
-                border:       isFuture ? '1px solid var(--color-border)' : 'none',
-                opacity:      isFuture ? 0.3 : 1,
-                flexShrink:   0,
-                transition:   'background 0.2s',
-              }}
-            />
-          )
-        })}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {/* Cabeçalho: dias da semana */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 10px)', gap: 4 }}>
+          {['D','S','T','Q','Q','S','S'].map((l, i) => (
+            <span key={i} style={{
+              fontSize: 9, color: 'var(--color-text-3)',
+              textAlign: 'center', lineHeight: '10px',
+            }}>
+              {l}
+            </span>
+          ))}
+        </div>
+        {/* Grid de dias com offset pelo dia da semana do dia 1 */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 10px)', gap: 4 }}>
+          {Array.from({ length: new Date(anoAtual, mesAtual, 1).getDay() }, (_, i) => (
+            <div key={`e${i}`} style={{ width: 10, height: 10 }} />
+          ))}
+          {Array.from({ length: diasNoMes }, (_, i) => {
+            const dia    = i + 1
+            const diaStr = `${anoAtual}-${String(mesAtual + 1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`
+            const humor  = mapaHumor[diaStr]
+            const isFuture = dia > hoje.getDate()
+            return (
+              <div
+                key={dia}
+                title={humor ? `Dia ${dia}: ${HUMOR_CONFIG[humor].label}` : `Dia ${dia}`}
+                style={{
+                  width:        10,
+                  height:       10,
+                  borderRadius: '50%',
+                  background:   isFuture
+                    ? 'transparent'
+                    : humor
+                      ? HUMOR_CORES[humor]
+                      : 'var(--color-surface-2)',
+                  border:       isFuture ? '1px solid var(--color-border)' : 'none',
+                  opacity:      isFuture ? 0.3 : 1,
+                  transition:   'background 0.2s',
+                }}
+              />
+            )
+          })}
+        </div>
       </div>
 
       {media !== null && (
@@ -346,7 +366,7 @@ function HumorCard({ isAdmin, user, profile }) {
 
   return (
     <Card>
-      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-1)', margin: '0 0 20px' }}>
+      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-1)', margin: '0 0 12px' }}>
         Humor do dia
       </p>
 
@@ -360,22 +380,21 @@ function HumorCard({ isAdmin, user, profile }) {
           ))}
         </div>
       ) : isAdmin && outroProfile ? (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 24,
-        }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <HumorPanel
             registros={registros}
-            nomeUsuario={profile?.nome?.split(' ')[0] ?? 'Você'}
+            nomeUsuario={getNomeExibicao(profile?.nome) ?? 'Você'}
             onRegistrar={handleRegistrar}
             animandoHumor={animandoHumor}
             isMe={true}
           />
-          <div style={{ borderLeft: '1px solid var(--color-border)', paddingLeft: 24 }}>
+          <div
+            className="border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
             <HumorPanel
               registros={registrosOutro}
-              nomeUsuario={outroProfile.nome?.split(' ')[0]}
+              nomeUsuario={getNomeExibicao(outroProfile.nome)}
               onRegistrar={null}
               animandoHumor={null}
               isMe={false}
