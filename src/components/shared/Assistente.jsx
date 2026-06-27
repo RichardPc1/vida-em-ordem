@@ -105,25 +105,38 @@ export function Assistente() {
         .limit(5),
       supabase
         .from('lancamentos')
-        .select('descricao, valor, tipo, data')
+        .select('id, descricao, valor, tipo, data, situacao')
         .gte('data', inicio)
         .lte('data', fimStr)
         .order('data', { ascending: false })
         .limit(20),
     ])
 
-    const todosLanc = lancRes.data ?? []
-    const entradas  = todosLanc.filter(l => l.tipo === 'entrada').reduce((s, l) => s + Number(l.valor), 0)
-    const saidas    = todosLanc.filter(l => l.tipo === 'saida').reduce((s, l) => s + Number(l.valor), 0)
+    const todosLanc    = lancRes.data ?? []
+    const realizados   = todosLanc.filter(l => l.situacao === 'realizado')
+    const naoRealiz    = todosLanc.filter(l => l.situacao !== 'realizado')
+    const reEnt  = realizados.filter(l => l.tipo === 'entrada').reduce((s, l) => s + Number(l.valor), 0)
+    const reSai  = realizados.filter(l => l.tipo === 'saida').reduce((s, l) => s + Number(l.valor), 0)
+    const pvEnt  = naoRealiz.filter(l => l.tipo === 'entrada').reduce((s, l) => s + Number(l.valor), 0)
+    const pvSai  = naoRealiz.filter(l => l.tipo === 'saida').reduce((s, l) => s + Number(l.valor), 0)
+
+    const proximosPrevistos = [...todosLanc]
+      .filter(l => l.situacao !== 'realizado')
+      .sort((a, b) => a.data.localeCompare(b.data))
+      .slice(0, 3)
+      .map(l => ({ descricao: l.descricao, valor: fmtCurrency(Number(l.valor)), data: l.data, tipo: l.tipo }))
 
     return {
       nomeUsuario:        getNomeExibicao(profile?.nome) ?? 'Usuário',
       dataAtual:          new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-      entradas:           fmtCurrency(entradas),
-      saidas:             fmtCurrency(saidas),
+      realizadoEntradas:  fmtCurrency(reEnt),
+      realizadoSaidas:    fmtCurrency(reSai),
+      previstoEntradas:   fmtCurrency(pvEnt),
+      previstoSaidas:     fmtCurrency(pvSai),
       tarefasPendentes:   tarefasRes.data?.length ?? 0,
       ultimasTarefas:     tarefasRes.data ?? [],
-      ultimosLancamentos: todosLanc.slice(0, 5),
+      ultimosLancamentos: todosLanc.slice(0, 5).map(l => ({ descricao: l.descricao, valor: l.valor, tipo: l.tipo, data: l.data, situacao: l.situacao })),
+      proximosPrevistos,
     }
   }
 
@@ -164,6 +177,50 @@ export function Assistente() {
         pessoa_id:   dados.compartilhada ? null : user.id,
         status:      'ativa',
       })
+      if (error) throw error
+    } else if (acao === 'confirmar_lancamento') {
+      if (dados.id) {
+        const { error } = await supabase
+          .from('lancamentos')
+          .update({ situacao: 'realizado', confirmado_em: new Date().toISOString() })
+          .eq('id', dados.id)
+        if (error) throw error
+      } else if (dados.titulo) {
+        const { data: found } = await supabase
+          .from('lancamentos')
+          .select('id')
+          .ilike('descricao', `%${dados.titulo}%`)
+          .in('situacao', ['pendente', 'previsto'])
+          .limit(1)
+        if (found?.[0]) {
+          const { error } = await supabase
+            .from('lancamentos')
+            .update({ situacao: 'realizado', confirmado_em: new Date().toISOString() })
+            .eq('id', found[0].id)
+          if (error) throw error
+        }
+      }
+    } else if (acao === 'confirmar_varios') {
+      if (dados.ids?.length) {
+        const { error } = await supabase
+          .from('lancamentos')
+          .update({ situacao: 'realizado', confirmado_em: new Date().toISOString() })
+          .in('id', dados.ids)
+        if (error) throw error
+      }
+    } else if (acao === 'confirmar_por_tipo') {
+      const mesRef   = dados.mes ? new Date(dados.mes + '-01T00:00:00') : new Date()
+      const ano      = mesRef.getFullYear()
+      const m        = mesRef.getMonth()
+      const primeiro = `${ano}-${String(m + 1).padStart(2, '0')}-01`
+      const ultimo   = `${ano}-${String(m + 1).padStart(2, '0')}-${new Date(ano, m + 1, 0).getDate()}`
+      const { error } = await supabase
+        .from('lancamentos')
+        .update({ situacao: 'realizado', confirmado_em: new Date().toISOString() })
+        .eq('tipo', dados.tipo)
+        .in('situacao', ['pendente', 'previsto'])
+        .gte('data', primeiro)
+        .lte('data', ultimo)
       if (error) throw error
     }
   }

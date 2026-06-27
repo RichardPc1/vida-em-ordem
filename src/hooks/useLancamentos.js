@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { classificarSituacao, recalcularSituacoes } from '../lib/classificador'
 
 // ---------------------------------------------------------------------------
 // Constantes de categorias
@@ -69,7 +70,6 @@ export function useLancamentos() {
   useEffect(() => {
     if (!user) return
     fetchLancamentos({ mes: new Date() })
-    // Apenas reagir a troca de usuário logado
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
@@ -82,17 +82,14 @@ export function useLancamentos() {
       setLoading(true)
       setError(null)
 
-      // Persiste para refetch pós-mutação
       filtrosAtivosRef.current = filtros
 
-      // Se filtros.mes é um Date usa-o; senão usa o mês atual
       const mesRef = filtros.mes instanceof Date ? filtros.mes : new Date()
       const ano    = mesRef.getFullYear()
       const mes    = mesRef.getMonth()
 
-      // Intervalo inclusivo do mês inteiro em data local
       const primeiroDia = dataLocalStr(new Date(ano, mes, 1))
-      const ultimoDia   = dataLocalStr(new Date(ano, mes + 1, 0)) // dia 0 = último dia do mês anterior
+      const ultimoDia   = dataLocalStr(new Date(ano, mes + 1, 0))
 
       let query = supabase
         .from('lancamentos')
@@ -109,7 +106,23 @@ export function useLancamentos() {
       const { data, error: err } = await query
       if (err) throw err
 
-      setLancamentos(data ?? [])
+      const raw          = data ?? []
+      const recalculados = recalcularSituacoes(raw)
+
+      // Sincronizar no banco os que passaram de 'previsto' para 'pendente'
+      // (o mês chegou mas o usuário ainda não confirmou)
+      const mudaram = recalculados
+        .filter((l, i) => raw[i].situacao === 'previsto' && l.situacao === 'pendente')
+        .map(l => l.id)
+
+      if (mudaram.length > 0) {
+        await supabase
+          .from('lancamentos')
+          .update({ situacao: 'pendente' })
+          .in('id', mudaram)
+      }
+
+      setLancamentos(recalculados)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -118,22 +131,71 @@ export function useLancamentos() {
   }
 
   // -------------------------------------------------------------------------
-  // criarLancamento
-  // Lança erro para o caller; fetchLancamentos interno tem seu próprio try/catch
+  // confirmarLancamento — confirma um único lançamento (permanece no mês original)
+  // -------------------------------------------------------------------------
+
+  async function confirmarLancamento(id) {
+    const { error: err } = await supabase
+      .from('lancamentos')
+      .update({ situacao: 'realizado', confirmado_em: new Date().toISOString() })
+      .eq('id', id)
+
+    if (err) throw err
+    await fetchLancamentos(filtrosAtivosRef.current)
+  }
+
+  // -------------------------------------------------------------------------
+  // confirmarVarios — confirma array de ids em batch
+  // -------------------------------------------------------------------------
+
+  async function confirmarVarios(ids) {
+    if (!ids?.length) return
+    const { error: err } = await supabase
+      .from('lancamentos')
+      .update({ situacao: 'realizado', confirmado_em: new Date().toISOString() })
+      .in('id', ids)
+
+    if (err) throw err
+    await fetchLancamentos(filtrosAtivosRef.current)
+  }
+
+  // -------------------------------------------------------------------------
+  // confirmarPorTipo — confirma todos pendentes/previstos do tipo no mês
+  // -------------------------------------------------------------------------
+
+  async function confirmarPorTipo(tipo, mesDate) {
+    const ano         = mesDate.getFullYear()
+    const mes         = mesDate.getMonth()
+    const primeiroDia = dataLocalStr(new Date(ano, mes, 1))
+    const ultimoDia   = dataLocalStr(new Date(ano, mes + 1, 0))
+
+    const { error: err } = await supabase
+      .from('lancamentos')
+      .update({ situacao: 'realizado', confirmado_em: new Date().toISOString() })
+      .eq('tipo', tipo)
+      .in('situacao', ['pendente', 'previsto'])
+      .gte('data', primeiroDia)
+      .lte('data', ultimoDia)
+
+    if (err) throw err
+    await fetchLancamentos(filtrosAtivosRef.current)
+  }
+
+  // -------------------------------------------------------------------------
+  // criarLancamento — situacao calculada automaticamente
   // -------------------------------------------------------------------------
 
   async function criarLancamento(dados) {
-    // Parsear data com T00:00:00 para evitar deslocamento UTC
     const baseDate = new Date(dados.data + 'T00:00:00')
 
     if (!dados.eh_parcelado) {
-      // --- Lançamento simples ---
       const payload = {
         tipo:             dados.tipo,
         valor:            Number(dados.valor),
         categoria:        dados.categoria,
         descricao:        dados.descricao,
         data:             dados.data,
+        situacao:         classificarSituacao(dados.data),
         pessoa_id:        dados.pessoa_id ?? user.id,
         eh_parcelado:     false,
         id_grupo_parcela: null,
@@ -144,29 +206,28 @@ export function useLancamentos() {
       const { error: err } = await supabase.from('lancamentos').insert(payload)
       if (err) throw err
     } else {
-      // --- Lançamento parcelado ---
       const grupoId       = crypto.randomUUID()
       const totalParcelas = Number(dados.total_parcelas)
 
       const parcelas = Array.from({ length: totalParcelas }, (_, i) => {
         const d = new Date(baseDate)
 
-        // Fixar dia 1 ANTES de avançar o mês para evitar overflow em dias 29/30/31.
-        // Exemplo: 31/jan + 1 mês sem fixar = 3/mar (março), não fevereiro.
         d.setDate(1)
         d.setMonth(d.getMonth() + i)
 
-        // Restaurar o dia original com clamp para o último dia do mês destino
         const diaOriginal  = baseDate.getDate()
         const ultimoDiaMes = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
         d.setDate(Math.min(diaOriginal, ultimoDiaMes))
+
+        const dataStr = dataLocalStr(d)
 
         return {
           tipo:             dados.tipo,
           valor:            Number(dados.valor),
           categoria:        dados.categoria,
           descricao:        dados.descricao,
-          data:             dataLocalStr(d),
+          data:             dataStr,
+          situacao:         classificarSituacao(dataStr),
           pessoa_id:        dados.pessoa_id ?? user.id,
           eh_parcelado:     true,
           id_grupo_parcela: grupoId,
@@ -179,19 +240,15 @@ export function useLancamentos() {
       if (err) throw err
     }
 
-    // Exibir o mês onde a primeira parcela/registro foi criado
     await fetchLancamentos({ mes: baseDate })
   }
 
   // -------------------------------------------------------------------------
   // deletarLancamento
-  // apenasEsta = true  → deleta somente este registro
-  // apenasEsta = false → deleta todas as parcelas do mesmo grupo
   // -------------------------------------------------------------------------
 
   async function deletarLancamento(id, apenasEsta = true) {
     if (!apenasEsta) {
-      // Buscar o grupo do registro para poder deletar todas as parcelas
       const { data: registro, error: fetchErr } = await supabase
         .from('lancamentos')
         .select('id_grupo_parcela, eh_parcelado')
@@ -201,36 +258,25 @@ export function useLancamentos() {
       if (fetchErr) throw fetchErr
 
       if (registro?.eh_parcelado && registro?.id_grupo_parcela) {
-        // Deletar todas as parcelas do grupo
         const { error: err } = await supabase
           .from('lancamentos')
           .delete()
           .eq('id_grupo_parcela', registro.id_grupo_parcela)
         if (err) throw err
       } else {
-        // Registro não é parcelado (defensivo) — deleta só este
-        const { error: err } = await supabase
-          .from('lancamentos')
-          .delete()
-          .eq('id', id)
+        const { error: err } = await supabase.from('lancamentos').delete().eq('id', id)
         if (err) throw err
       }
     } else {
-      // Deleta somente este registro
-      const { error: err } = await supabase
-        .from('lancamentos')
-        .delete()
-        .eq('id', id)
+      const { error: err } = await supabase.from('lancamentos').delete().eq('id', id)
       if (err) throw err
     }
 
-    // Refetch mantendo os filtros que o usuário tinha ativos
     await fetchLancamentos(filtrosAtivosRef.current)
   }
 
   // -------------------------------------------------------------------------
-  // calcularTotaisMes
-  // Opera sobre o state local — nenhuma query extra ao banco
+  // calcularTotaisMes — retorna { realizado, previsto, total }
   // -------------------------------------------------------------------------
 
   function calcularTotaisMes(mesDate) {
@@ -242,20 +288,30 @@ export function useLancamentos() {
       return d.getMonth() === mes && d.getFullYear() === ano
     })
 
-    const entradas = doMes
-      .filter(l => l.tipo === 'entrada')
-      .reduce((s, l) => s + Number(l.valor), 0)
+    const soma = (lista, tipo) =>
+      lista.filter(l => l.tipo === tipo).reduce((s, l) => s + Number(l.valor), 0)
 
-    const saidas = doMes
-      .filter(l => l.tipo === 'saida')
-      .reduce((s, l) => s + Number(l.valor), 0)
+    const realizados    = doMes.filter(l => l.situacao === 'realizado')
+    const naoRealizados = doMes.filter(l => l.situacao !== 'realizado')
 
-    return { entradas, saidas, saldo: entradas - saidas }
+    const reEnt = soma(realizados, 'entrada')
+    const reSai = soma(realizados, 'saida')
+    const pvEnt = soma(naoRealizados, 'entrada')
+    const pvSai = soma(naoRealizados, 'saida')
+
+    return {
+      realizado: { entradas: reEnt, saidas: reSai, saldo: reEnt - reSai },
+      previsto:  { entradas: pvEnt, saidas: pvSai, saldo: pvEnt - pvSai },
+      total:     {
+        entradas: reEnt + pvEnt,
+        saidas:   reSai + pvSai,
+        saldo:    (reEnt + pvEnt) - (reSai + pvSai),
+      },
+    }
   }
 
   // -------------------------------------------------------------------------
-  // prepararDadosPizza
-  // Agrupa saídas do mês por categoria para gráfico de pizza (Recharts)
+  // prepararDadosPizza — usa apenas realizados (histórico real)
   // -------------------------------------------------------------------------
 
   function prepararDadosPizza(mesDate) {
@@ -280,20 +336,16 @@ export function useLancamentos() {
   }
 
   // -------------------------------------------------------------------------
-  // prepararDadosBarras
-  // Últimos 6 meses para gráfico de barras (Recharts) — usa dados do state
-  // Para funcionar com 6 meses completos, chamar fetchLancamentos com range
-  // mais amplo antes de renderizar o gráfico
+  // prepararDadosBarras — usa total (realizado + previsto) para os 6 meses
   // -------------------------------------------------------------------------
 
   function prepararDadosBarras() {
     return Array.from({ length: 6 }, (_, i) => {
       const ref = new Date()
-      // Fixar dia 1 antes de alterar o mês para evitar overflow
       ref.setDate(1)
       ref.setMonth(ref.getMonth() - (5 - i))
 
-      const { entradas, saidas } = calcularTotaisMes(ref)
+      const { total: { entradas, saidas } } = calcularTotaisMes(ref)
 
       return {
         mes: ref.toLocaleDateString('pt-BR', { month: 'short' }),
@@ -304,7 +356,7 @@ export function useLancamentos() {
   }
 
   // -------------------------------------------------------------------------
-  // Retorno público do hook
+  // Retorno público
   // -------------------------------------------------------------------------
 
   return {
@@ -314,6 +366,9 @@ export function useLancamentos() {
     fetchLancamentos,
     criarLancamento,
     deletarLancamento,
+    confirmarLancamento,
+    confirmarVarios,
+    confirmarPorTipo,
     calcularTotaisMes,
     prepararDadosPizza,
     prepararDadosBarras,

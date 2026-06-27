@@ -408,9 +408,66 @@ function HumorCard({ isAdmin, user, profile }) {
   )
 }
 
+function SaldoCard({ saldoRealizado, saldoPrevisto, saidasPrevistas, loading }) {
+  const corRealizado = !loading && saldoRealizado > 0
+    ? 'var(--color-accent)'
+    : !loading && saldoRealizado < 0
+    ? 'var(--color-danger)'
+    : 'var(--color-text-2)'
+
+  const corPrevisto = !loading && saldoPrevisto > 0
+    ? 'var(--color-accent)'
+    : !loading && saldoPrevisto < 0
+    ? 'var(--color-danger)'
+    : 'var(--color-text-2)'
+
+  return (
+    <Card>
+      <p style={{
+        fontSize: 12, fontWeight: 500, color: 'var(--color-text-2)',
+        margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.07em',
+      }}>
+        Saldo realizado
+      </p>
+      {loading ? (
+        <Skeleton height={34} width="65%" radius={6} />
+      ) : (
+        <p style={{
+          fontFamily: 'JetBrains Mono, monospace',
+          fontSize: 28, fontWeight: 500, color: corRealizado,
+          margin: saidasPrevistas > 0 ? '0 0 12px' : 0, lineHeight: 1.1,
+        }}>
+          {fmtCurrency(saldoRealizado)}
+        </p>
+      )}
+
+      {!loading && saidasPrevistas > 0 && (
+        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 10 }}>
+          <p style={{
+            fontSize: 11, fontWeight: 500, color: 'var(--color-text-2)',
+            margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.07em', opacity: 0.6,
+          }}>
+            Saldo previsto
+          </p>
+          <p style={{
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: 18, fontWeight: 500, color: corPrevisto,
+            margin: '0 0 4px', opacity: 0.6,
+          }}>
+            {fmtCurrency(saldoPrevisto)}
+          </p>
+          <p style={{ fontSize: 11, color: 'var(--color-text-3)', margin: 0 }}>
+            após pagar {fmtCurrency(saidasPrevistas)} em previstos
+          </p>
+        </div>
+      )}
+    </Card>
+  )
+}
+
 export default function Dashboard() {
   const { user, profile, isAdmin } = useAuth()
-  const { entradas, saidas, saldo, tarefasPendentes, proximasTarefas, dadosGrafico, loading, error, refetch } = useDashboard()
+  const { entradas, saidas, saldo, saldoRealizado, saldoPrevisto, saidasPrevistas, tarefasPendentes, proximasTarefas, dadosGrafico, loading, error, refetch } = useDashboard()
   const { isRefreshing, pullY } = usePullToRefresh(refetch)
 
   const primeiroNome  = getNomeExibicao(profile?.nome) ?? 'Usuário'
@@ -454,14 +511,10 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard label="Entradas"    value={fmtCurrency(entradas)} valueColor="var(--color-success)" loading={loading} />
         <MetricCard label="Saídas"      value={fmtCurrency(saidas)}   valueColor="var(--color-danger)"  loading={loading} />
-        <MetricCard
-          label="Saldo do Mês"
-          value={fmtCurrency(saldo)}
-          valueColor={
-            !loading && saldo > 0 ? 'var(--color-accent)' :
-            !loading && saldo < 0 ? 'var(--color-danger)' :
-            'var(--color-text-2)'
-          }
+        <SaldoCard
+          saldoRealizado={saldoRealizado}
+          saldoPrevisto={saldoPrevisto}
+          saidasPrevistas={saidasPrevistas}
           loading={loading}
         />
         <MetricCard

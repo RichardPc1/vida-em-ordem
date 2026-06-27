@@ -32,12 +32,43 @@ function calcularTotaisMes(lancamentos, mesRef) {
   return { entradas, saidas, saldo: entradas - saidas }
 }
 
+function calcularRealizadoMes(lancamentos, mesRef) {
+  const mes = mesRef.getMonth()
+  const ano = mesRef.getFullYear()
+
+  const doMes = lancamentos.filter(l => {
+    const d = new Date(l.data + 'T00:00:00')
+    return d.getMonth() === mes && d.getFullYear() === ano && l.situacao === 'realizado'
+  })
+
+  const entradas = doMes.filter(l => l.tipo === 'entrada').reduce((s, l) => s + Number(l.valor), 0)
+  const saidas   = doMes.filter(l => l.tipo === 'saida').reduce((s, l) => s + Number(l.valor), 0)
+  return { entradas, saidas, saldo: entradas - saidas }
+}
+
+function calcularPrevistoMes(lancamentos, mesRef) {
+  const mes = mesRef.getMonth()
+  const ano = mesRef.getFullYear()
+
+  const doMes = lancamentos.filter(l => {
+    const d = new Date(l.data + 'T00:00:00')
+    return d.getMonth() === mes && d.getFullYear() === ano && l.situacao !== 'realizado'
+  })
+
+  const entradas = doMes.filter(l => l.tipo === 'entrada').reduce((s, l) => s + Number(l.valor), 0)
+  const saidas   = doMes.filter(l => l.tipo === 'saida').reduce((s, l) => s + Number(l.valor), 0)
+  return { entradas, saidas, saldo: entradas - saidas }
+}
+
 export function useDashboard() {
   const { user } = useAuth()
   const [state, setState] = useState({
     entradas:          0,
     saidas:            0,
     saldo:             0,
+    saldoRealizado:    0,
+    saldoPrevisto:     0,
+    saidasPrevistas:   0,
     tarefasPendentes:  0,
     proximasTarefas:   [],
     dadosGrafico:      [],
@@ -58,7 +89,7 @@ export function useDashboard() {
       const [lancResult, tarefasResult, countResult] = await Promise.all([
         supabase
           .from('lancamentos')
-          .select('valor, tipo, data')
+          .select('valor, tipo, data, situacao')
           .gte('data', inicioRange)
           .order('data', { ascending: true }),
 
@@ -90,7 +121,10 @@ export function useDashboard() {
       const lancamentos = lancResult.data ?? []
       const agora       = new Date()
 
-      const { entradas, saidas, saldo } = calcularTotaisMes(lancamentos, agora)
+      const { entradas, saidas, saldo }                   = calcularTotaisMes(lancamentos, agora)
+      const { saldo: saldoRealizado }                     = calcularRealizadoMes(lancamentos, agora)
+      const { saidas: saidasPrevistas, saldo: saldoComPrevisto } = calcularPrevistoMes(lancamentos, agora)
+      const saldoPrevisto = saldoRealizado + saldoComPrevisto
 
       // Últimos 6 meses para o gráfico (do mais antigo ao mais recente)
       const dadosGrafico = Array.from({ length: 6 }, (_, i) => {
@@ -109,6 +143,9 @@ export function useDashboard() {
         entradas,
         saidas,
         saldo,
+        saldoRealizado,
+        saldoPrevisto,
+        saidasPrevistas,
         tarefasPendentes: countResult.count ?? 0,
         proximasTarefas:  tarefasResult.data ?? [],
         dadosGrafico,

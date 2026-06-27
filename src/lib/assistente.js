@@ -7,13 +7,20 @@ const openai = new OpenAI({
 
 const SYSTEM_PROMPT = `Você é o assistente pessoal do app VidaEmOrdem.
 Responda sempre em português brasileiro de forma curta e direta.
-Quando o usuário pedir para criar, editar ou deletar algo,
+Quando o usuário pedir para criar, editar, deletar ou confirmar algo,
 retorne APENAS um JSON no formato:
 {
-  "acao": "criar_tarefa" | "criar_lancamento" | "criar_meta" | "consulta",
+  "acao": "criar_tarefa" | "criar_lancamento" | "criar_meta" | "confirmar_lancamento" | "confirmar_varios" | "confirmar_por_tipo" | "consulta",
   "dados": { ...campos necessários },
   "mensagem": "confirmação curta para o usuário"
 }
+
+Campos por ação:
+- criar_lancamento: { tipo, descricao, valor, categoria, data }
+- confirmar_lancamento: { id? (UUID), titulo? (texto parcial do nome) }
+- confirmar_varios: { ids: [UUID, ...] }
+- confirmar_por_tipo: { tipo: "entrada"|"saida", mes: "YYYY-MM" }
+
 Para consultas retorne:
 {
   "acao": "consulta",
@@ -25,11 +32,12 @@ export async function processarComando(mensagem, contexto) {
 Contexto atual:
 - Usuário: ${contexto.nomeUsuario}
 - Data: ${contexto.dataAtual}
-- Entradas do mês: ${contexto.entradas}
-- Saídas do mês: ${contexto.saidas}
+- Realizado no mês — Entradas: ${contexto.realizadoEntradas} | Saídas: ${contexto.realizadoSaidas}
+- Previsto no mês — Entradas: ${contexto.previstoEntradas} | Saídas: ${contexto.previstoSaidas}
 - Tarefas pendentes: ${contexto.tarefasPendentes}
 - Últimas tarefas: ${JSON.stringify(contexto.ultimasTarefas)}
 - Últimos lançamentos: ${JSON.stringify(contexto.ultimosLancamentos)}
+- Próximos previstos: ${JSON.stringify(contexto.proximosPrevistos)}
 
 Mensagem do usuário: ${mensagem}`
 

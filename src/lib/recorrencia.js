@@ -1,3 +1,5 @@
+import { classificarSituacao } from './classificador'
+
 // Opções de recorrência — exportada para uso no modal e na lógica
 export const RECORRENCIA_OPCOES = [
   { value: 'diaria',    label: 'Diária'    },
@@ -50,5 +52,24 @@ export function gerarProximaTarefa(tarefa) {
     data_vencimento: proximaData,
     status:          'pendente',
     tarefa_pai_id:   id,   // aponta para a tarefa original
+  }
+}
+
+// Gera o payload do próximo lançamento financeiro recorrente
+// A situacao é calculada automaticamente pela data futura
+export function gerarProximoLancamento(lancamento) {
+  if (!lancamento.recorrencia || !lancamento.data) return null
+
+  const proximaData = calcularProximaData(lancamento.data, lancamento.recorrencia)
+  if (!proximaData) return null
+
+  // eslint-disable-next-line no-unused-vars
+  const { id, created_at, updated_at, confirmado_em, situacao, profiles, ...resto } = lancamento
+
+  return {
+    ...resto,
+    data:         proximaData,
+    situacao:     classificarSituacao(proximaData),
+    confirmado_em: null,
   }
 }
