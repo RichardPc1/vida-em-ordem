@@ -84,14 +84,35 @@ export function useMetas() {
   // Promove status para 'concluida' automaticamente quando meta é batida.
   // -------------------------------------------------------------------------
 
-  async function depositarNaMeta(id, valor) {
+  async function depositarNaMeta(id, valor, descricao) {
     const meta = metas.find(m => m.id === id)
     if (!meta) throw new Error('Meta não encontrada')
 
+    const { error: errContrib } = await supabase
+      .from('meta_contribuicoes')
+      .insert({ meta_id: id, pessoa_id: user.id, valor: Number(valor), descricao: descricao || null })
+    if (errContrib) throw errContrib
+
     const novoValor  = Number(meta.valor_atual) + Number(valor)
     const novoStatus = novoValor >= Number(meta.valor_alvo) ? 'concluida' : 'ativa'
-
     await atualizarMeta(id, { valor_atual: novoValor, status: novoStatus })
+  }
+
+  // -------------------------------------------------------------------------
+  // fetchContribuicoes
+  // Retorna os últimos 5 depósitos de uma meta, com nome do contribuinte.
+  // Chamada sob demanda (não reativa) — usada pelo modal de depósito.
+  // -------------------------------------------------------------------------
+
+  async function fetchContribuicoes(metaId) {
+    const { data, error: err } = await supabase
+      .from('meta_contribuicoes')
+      .select('id, valor, descricao, created_at, pessoa_id, profiles(nome)')
+      .eq('meta_id', metaId)
+      .order('created_at', { ascending: false })
+      .limit(5)
+    if (err) throw err
+    return data ?? []
   }
 
   // -------------------------------------------------------------------------
@@ -170,6 +191,7 @@ export function useMetas() {
     criarMeta,
     atualizarMeta,
     depositarNaMeta,
+    fetchContribuicoes,
     concluirMeta,
     cancelarMeta,
     calcularProgresso,

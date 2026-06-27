@@ -107,6 +107,50 @@ function ProgressBar({ percentual, height = 6 }) {
 }
 
 // ---------------------------------------------------------------------------
+// ContribuicoesSplit
+// ---------------------------------------------------------------------------
+
+function ContribuicoesSplit({ euTotal, outroTotal, meuNome, outroNome, valorAlvo }) {
+  const total    = Number(valorAlvo)
+  const euPct    = total > 0 ? Math.min(100, (euTotal / total) * 100) : 0
+  const outroPct = total > 0 ? Math.min(100 - euPct, (outroTotal / total) * 100) : 0
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {/* Barra dividida em duas cores proporcionais */}
+      <div style={{
+        height:     6,
+        borderRadius: 3,
+        background: 'var(--color-surface-2)',
+        display:    'flex',
+        overflow:   'hidden',
+      }}>
+        {euPct > 0 && (
+          <div style={{
+            width:      `${euPct}%`,
+            background: 'var(--color-accent)',
+            transition: 'width 0.4s ease',
+          }} />
+        )}
+        {outroPct > 0 && (
+          <div style={{
+            width:      `${outroPct}%`,
+            background: 'var(--color-success)',
+            transition: 'width 0.4s ease',
+          }} />
+        )}
+      </div>
+      {/* Labels de contribuição */}
+      <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, margin: 0, color: 'var(--color-text-2)' }}>
+        <span style={{ color: 'var(--color-accent)' }}>{meuNome}: {fmtCurrency(euTotal)}</span>
+        {' · '}
+        <span style={{ color: 'var(--color-success)' }}>{outroNome}: {fmtCurrency(outroTotal)}</span>
+      </p>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // FormField helper
 // ---------------------------------------------------------------------------
 
@@ -128,7 +172,7 @@ function FormField({ label, children }) {
 // ---------------------------------------------------------------------------
 
 function MetaCard({
-  meta, isAdmin, userId,
+  meta, isAdmin, userId, contribuicoesInfo, meuNome, outroNome,
   onDepositar, onEditar, onConcluir, onCancelar,
   calcularProgresso, calcularCountdown,
 }) {
@@ -286,7 +330,17 @@ function MetaCard({
 
       {/* Barra de progresso + countdown + percentual */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <ProgressBar percentual={progresso} />
+        {isCompartilhada && contribuicoesInfo ? (
+          <ContribuicoesSplit
+            euTotal={contribuicoesInfo.eu}
+            outroTotal={contribuicoesInfo.outro}
+            meuNome={meuNome}
+            outroNome={outroNome}
+            valorAlvo={meta.valor_alvo}
+          />
+        ) : (
+          <ProgressBar percentual={progresso} />
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           {meta.prazo && (
             <span style={{ fontSize: 12, color: corCountdown }}>
@@ -455,7 +509,7 @@ function MetaSkeletons() {
 // ---------------------------------------------------------------------------
 
 export default function Metas() {
-  const { user, isAdmin } = useAuth()
+  const { user, profile, isAdmin } = useAuth()
   const {
     metas,
     loading,
@@ -467,6 +521,7 @@ export default function Metas() {
     cancelarMeta,
     calcularProgresso,
     calcularCountdown,
+    fetchContribuicoes,
   } = useMetas()
 
   const [tab, setTab] = useState('ativa')
@@ -487,6 +542,12 @@ export default function Metas() {
 
   // --- outro perfil (admin) ---
   const [outroProfile, setOutroProfile] = useState(null)
+
+  // --- contribuições ---
+  const [contribuicoesPorMeta,  setContribuicoesPorMeta]  = useState({})
+  const [contribuicoesModal,    setContribuicoesModal]    = useState([])
+  const [loadingContribuicoes,  setLoadingContribuicoes]  = useState(false)
+  const [descricaoDeposito,     setDescricaoDeposito]     = useState('')
 
   // Busca o segundo perfil para o admin poder atribuir metas
   useEffect(() => {
@@ -524,13 +585,47 @@ export default function Metas() {
     if (!modalDepositarOpen) return
     setValorDeposito('')
     setErroDeposito('')
+    setDescricaoDeposito('')
+    setContribuicoesModal([])
   }, [modalDepositarOpen])
+
+  // Carrega totais por pessoa para cada meta compartilhada (para a barra dividida)
+  useEffect(() => {
+    const compartilhadas = metas.filter(m => m.pessoa_id === null)
+    if (!compartilhadas.length || !user) return
+    const ids = compartilhadas.map(m => m.id)
+    supabase
+      .from('meta_contribuicoes')
+      .select('meta_id, pessoa_id, valor')
+      .in('meta_id', ids)
+      .then(({ data }) => {
+        if (!data) return
+        // Agrupa por meta e por pessoa
+        const porMeta = {}
+        data.forEach(c => {
+          if (!porMeta[c.meta_id]) porMeta[c.meta_id] = {}
+          if (!porMeta[c.meta_id][c.pessoa_id]) porMeta[c.meta_id][c.pessoa_id] = 0
+          porMeta[c.meta_id][c.pessoa_id] += Number(c.valor)
+        })
+        // Converte para { eu, outro } por meta
+        const resultado = {}
+        compartilhadas.forEach(m => {
+          const porPessoa = porMeta[m.id] ?? {}
+          const eu = porPessoa[user.id] ?? 0
+          resultado[m.id] = { eu, outro: Math.max(0, Number(m.valor_atual) - eu) }
+        })
+        setContribuicoesPorMeta(resultado)
+      })
+  }, [metas, user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------------------
   // Derivados
   // ---------------------------------------------------------------------------
 
   const metasFiltradas = metas.filter(m => m.status === tab)
+
+  const meuNomeExibicao   = profile?.nome?.split(' ')[0] ?? 'Eu'
+  const outroNomeExibicao = outroProfile?.nome?.split(' ')[0] ?? 'Outro'
 
   // ---------------------------------------------------------------------------
   // Handlers de navegação / abertura de modais
@@ -539,6 +634,15 @@ export default function Metas() {
   function abrirDepositar(meta) {
     setDepositandoMeta(meta)
     setModalDepositarOpen(true)
+    // Carrega histórico para metas compartilhadas
+    if (meta.pessoa_id === null) {
+      setLoadingContribuicoes(true)
+      setContribuicoesModal([])
+      fetchContribuicoes(meta.id)
+        .then(data => setContribuicoesModal(data))
+        .catch(err => console.error('[Metas] fetchContribuicoes:', err.message))
+        .finally(() => setLoadingContribuicoes(false))
+    }
   }
 
   function abrirEditar(meta) {
@@ -611,9 +715,11 @@ export default function Metas() {
     setDepositando(true)
     setErroDeposito('')
     try {
-      await depositarNaMeta(depositandoMeta.id, valor)
+      await depositarNaMeta(depositandoMeta.id, valor, descricaoDeposito || null)
       setModalDepositarOpen(false)
-      toast.success('Depósito registrado', { style: { borderColor: 'var(--color-accent)' } })
+      toast.success(`Depósito de ${fmtCurrency(valor)} registrado na meta!`, {
+        style: { borderColor: 'var(--color-accent)' },
+      })
     } catch {
       setErroDeposito('Erro ao registrar depósito.')
       toast.error('Erro ao registrar depósito', { style: { borderColor: 'var(--color-danger)' } })
@@ -688,6 +794,9 @@ export default function Metas() {
               meta={meta}
               isAdmin={isAdmin}
               userId={user?.id}
+              contribuicoesInfo={meta.pessoa_id === null ? contribuicoesPorMeta[meta.id] : null}
+              meuNome={meuNomeExibicao}
+              outroNome={outroNomeExibicao}
               calcularProgresso={calcularProgresso}
               calcularCountdown={calcularCountdown}
               onDepositar={() => abrirDepositar(meta)}
@@ -944,7 +1053,7 @@ export default function Metas() {
             background:   'var(--color-surface)',
             border:       '1px solid var(--color-border)',
             borderRadius: 16,
-            maxWidth:     360,
+            maxWidth:     400,
             padding:      28,
           }}
         >
@@ -960,6 +1069,65 @@ export default function Metas() {
               <p style={{ fontSize: 13, color: 'var(--color-text-2)', margin: 0 }}>
                 {depositandoMeta.titulo}
               </p>
+
+              {/* Histórico — só para metas compartilhadas */}
+              {depositandoMeta.pessoa_id === null && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-2)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Últimas contribuições
+                  </p>
+                  {loadingContribuicoes ? (
+                    <p style={{ fontSize: 12, color: 'var(--color-text-3)', margin: 0 }}>Carregando...</p>
+                  ) : contribuicoesModal.length === 0 ? (
+                    <p style={{ fontSize: 12, color: 'var(--color-text-3)', margin: 0, fontStyle: 'italic' }}>
+                      Nenhuma contribuição ainda
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {contribuicoesModal.map(c => (
+                        <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          {/* Avatar com iniciais */}
+                          <div style={{
+                            width:           28,
+                            height:          28,
+                            borderRadius:    '50%',
+                            background:      'var(--color-surface-2)',
+                            border:          '1px solid var(--color-border)',
+                            display:         'flex',
+                            alignItems:      'center',
+                            justifyContent:  'center',
+                            fontSize:        11,
+                            fontWeight:      700,
+                            color:           'var(--color-text-2)',
+                            flexShrink:      0,
+                          }}>
+                            {(c.profiles?.nome ?? '?').charAt(0).toUpperCase()}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                              <span style={{ fontSize: 13, color: 'var(--color-text-1)', fontWeight: 500 }}>
+                                {(c.profiles?.nome ?? 'Desconhecido').split(' ')[0]}
+                              </span>
+                              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: 'var(--color-accent)', flexShrink: 0 }}>
+                                {fmtCurrency(c.valor)}
+                              </span>
+                            </div>
+                            {c.descricao && (
+                              <p style={{ fontSize: 11, color: 'var(--color-text-3)', margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {c.descricao}
+                              </p>
+                            )}
+                            <p style={{ fontSize: 11, color: 'var(--color-text-3)', margin: '1px 0 0' }}>
+                              {new Date(c.created_at).toLocaleDateString('pt-BR')}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ height: 1, background: 'var(--color-border)' }} />
+                </div>
+              )}
 
               {/* Quanto falta */}
               <div style={{
@@ -1003,6 +1171,19 @@ export default function Metas() {
                     fontSize:   18,
                     textAlign:  'center',
                   }}
+                  onFocus={focusAcc}
+                  onBlur={blurBorder}
+                />
+              </FormField>
+
+              {/* Descrição opcional */}
+              <FormField label="Descrição (opcional)">
+                <input
+                  type="text"
+                  value={descricaoDeposito}
+                  onChange={e => setDescricaoDeposito(e.target.value)}
+                  placeholder="Ex: salário de junho"
+                  style={inputStyle}
                   onFocus={focusAcc}
                   onBlur={blurBorder}
                 />
