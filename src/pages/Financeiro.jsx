@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Plus, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { Plus, ChevronLeft, ChevronRight, Trash2, FileDown, Loader2 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, Tooltip,
   BarChart, Bar, XAxis, CartesianGrid, ResponsiveContainer,
@@ -13,6 +14,7 @@ import {
 } from '../hooks/useLancamentos'
 import { supabase } from '../lib/supabase'
 import { fmtCurrency } from '../lib/utils'
+import { gerarRelatorioPDF } from '../lib/relatorio'
 import {
   Dialog,
   DialogContent,
@@ -604,7 +606,7 @@ function FormField({ label, children }) {
 // ---------------------------------------------------------------------------
 
 export default function Financeiro() {
-  const { user, isAdmin } = useAuth()
+  const { user, profile, isAdmin } = useAuth()
   const {
     lancamentos,
     loading,
@@ -618,6 +620,7 @@ export default function Financeiro() {
   } = useLancamentos()
 
   const [mes, setMes]                     = useState(new Date())
+  const [gerandoPDF, setGerandoPDF]       = useState(false)
   const [modalOpen, setModalOpen]         = useState(false)
   const [deletandoLanc, setDeletandoLanc] = useState(null)
   const [outroProfile, setOutroProfile]   = useState(null)
@@ -706,6 +709,67 @@ export default function Financeiro() {
     }
   }
 
+  // ---- Exportar PDF ----
+
+  async function handleExportarPDF() {
+    setGerandoPDF(true)
+    try {
+      const ano    = mes.getFullYear()
+      const mesNum = mes.getMonth() + 1
+      const mesStr = `${ano}-${String(mesNum).padStart(2, '0')}-01`
+      const ultimo = new Date(ano, mesNum, 0)
+      const fimStr = `${ano}-${String(mesNum).padStart(2, '0')}-${String(ultimo.getDate()).padStart(2, '0')}`
+
+      // Busca orçamentos e metas em paralelo
+      const [orcResult, metasResult] = await Promise.all([
+        supabase.from('orcamento_mensal').select('*').eq('mes_referencia', mesStr),
+        supabase.from('metas').select('titulo, valor_alvo, valor_atual, prazo, status'),
+      ])
+
+      // Monta orcamentos com gasto calculado a partir dos lançamentos do mês em tela
+      const CATS = ['alimentacao','transporte','moradia','saude','lazer','educacao','vestuario','outros']
+      const CAT_LABEL = {
+        alimentacao:'Alimentação', transporte:'Transporte', moradia:'Moradia',
+        saude:'Saúde', lazer:'Lazer', educacao:'Educação', vestuario:'Vestuário', outros:'Outros',
+      }
+      const orcamentosComGasto = CATS
+        .map(cat => {
+          const orc        = orcResult.data?.find(o => o.categoria === cat)
+          const valorLimite = Number(orc?.valor_limite ?? 0)
+          const gasto       = lancamentos
+            .filter(l => l.tipo === 'saida' && l.categoria === cat)
+            .reduce((s, l) => s + Number(l.valor), 0)
+          return {
+            categoria:   cat,
+            label:       CAT_LABEL[cat],
+            valorLimite,
+            gasto,
+            diferenca:   valorLimite - gasto,
+            percentual:  valorLimite > 0 ? (gasto / valorLimite) * 100 : 0,
+          }
+        })
+        .filter(o => o.gasto > 0 || o.valorLimite > 0)
+
+      const { entradas: e, saidas: s, saldo: sl } = calcularTotaisMes(mes)
+
+      gerarRelatorioPDF(mesNum, ano, {
+        lancamentos,
+        orcamentos: orcamentosComGasto,
+        metas:      metasResult.data ?? [],
+        perfil:     profile,
+        totais:     { entradas: e, saidas: s, saldo: sl },
+        isAdmin,
+      })
+
+      toast.success('PDF gerado com sucesso!', { style: { borderColor: 'var(--color-accent)' } })
+    } catch (err) {
+      console.error('[PDF]', err)
+      toast.error('Erro ao gerar PDF', { style: { borderColor: 'var(--color-danger)' } })
+    } finally {
+      setGerandoPDF(false)
+    }
+  }
+
   // ---- Dados calculados ----
 
   const { entradas, saidas, saldo } = calcularTotaisMes(mes)
@@ -763,6 +827,36 @@ export default function Financeiro() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <SeletorMes mes={mes} onAnterior={anteriorMes} onProximo={proximoMes} />
+
+          {/* Botão Exportar PDF */}
+          <button
+            onClick={handleExportarPDF}
+            disabled={gerandoPDF || loading}
+            style={{
+              display:     'flex',
+              alignItems:  'center',
+              gap:         6,
+              padding:     '8px 14px',
+              borderRadius: 10,
+              border:      '1px solid var(--color-border)',
+              background:  'transparent',
+              color:       gerandoPDF ? 'var(--color-text-3)' : 'var(--color-text-2)',
+              fontSize:    13,
+              fontWeight:  500,
+              cursor:      gerandoPDF ? 'not-allowed' : 'pointer',
+              transition:  'all 0.15s',
+              flexShrink:  0,
+            }}
+            onMouseEnter={e => { if (!gerandoPDF) e.currentTarget.style.color = 'var(--color-text-1)' }}
+            onMouseLeave={e => { if (!gerandoPDF) e.currentTarget.style.color = 'var(--color-text-2)' }}
+          >
+            {gerandoPDF
+              ? <Loader2 size={15} className="animate-spin" />
+              : <FileDown size={15} />
+            }
+            {gerandoPDF ? 'Gerando...' : 'Exportar PDF'}
+          </button>
+
           <button
             onClick={() => setModalOpen(true)}
             style={{
