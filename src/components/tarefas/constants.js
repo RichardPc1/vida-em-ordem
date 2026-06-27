@@ -19,4 +19,5 @@ export const FORM_INICIAL = {
   prioridade:      'media',
   data_vencimento: '',
   pessoa_id:       '',
+  recorrencia:     null,
 }

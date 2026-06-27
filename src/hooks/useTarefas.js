@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { gerarProximaTarefa } from '../lib/recorrencia'
 
 export function useTarefas(filtros = {}) {
   const { user } = useAuth()
@@ -63,7 +64,24 @@ export function useTarefas(filtros = {}) {
   }
 
   async function concluirTarefa(id) {
-    return atualizarTarefa(id, { status: 'concluida' })
+    // Captura a tarefa antes de alterar o estado (atualizarTarefa chama fetchTarefas)
+    const tarefa = tarefas.find(t => t.id === id)
+
+    // Marca como concluída (já chama fetchTarefas internamente)
+    await atualizarTarefa(id, { status: 'concluida' })
+
+    // Se recorrente, gera e insere a próxima ocorrência
+    if (tarefa?.recorrencia && tarefa?.data_vencimento) {
+      const proxima = gerarProximaTarefa(tarefa)
+      if (proxima) {
+        const { error: err } = await supabase.from('tarefas').insert(proxima)
+        if (err) throw err
+        await fetchTarefas()
+        return { proximaData: proxima.data_vencimento }
+      }
+    }
+
+    return null
   }
 
   return {

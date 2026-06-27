@@ -87,10 +87,14 @@ export default function Tarefas() {
         await atualizarTarefa(tarefa.id, { status: 'pendente' })
         toast('Tarefa reaberta', { style: { borderColor: 'var(--color-border)' } })
       } else {
-        await concluirTarefa(tarefa.id)
-        toast.success('Tarefa concluída ✓', {
-          style: { borderColor: 'var(--color-accent)' },
-        })
+        const resultado = await concluirTarefa(tarefa.id)
+        const msg = resultado?.proximaData
+          ? `Tarefa concluída ✓  Próxima para ${
+              new Date(resultado.proximaData + 'T00:00:00')
+                .toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })
+            }`
+          : 'Tarefa concluída ✓'
+        toast.success(msg, { style: { borderColor: 'var(--color-accent)' } })
       }
     } catch {
       toast.error('Erro ao atualizar tarefa', {

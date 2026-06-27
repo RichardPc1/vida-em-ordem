@@ -8,6 +8,7 @@ import {
   SelectTrigger, SelectValue,
 } from '../ui/select'
 import { CATEGORIAS, PRIORIDADES, FORM_INICIAL } from './constants'
+import { RECORRENCIA_OPCOES, calcularProximaData } from '../../lib/recorrencia'
 
 const inputStyle = {
   background:   'var(--color-surface-2)',
@@ -77,6 +78,7 @@ export function TaskModal({ open, onClose, onSalvar, editando, isAdmin, userId, 
       prioridade:      editando.prioridade,
       data_vencimento: editando.data_vencimento ?? '',
       pessoa_id:       editando.pessoa_id,
+      recorrencia:     editando.recorrencia ?? null,
     } : { ...FORM_INICIAL, pessoa_id: userId })
   }, [open, editando, userId])
 
@@ -94,6 +96,7 @@ export function TaskModal({ open, onClose, onSalvar, editando, isAdmin, userId, 
         titulo:          form.titulo.trim(),
         data_vencimento: form.data_vencimento || null,
         descricao:       form.descricao       || null,
+        recorrencia:     form.recorrencia     || null,
       })
       onClose()
     } catch {
@@ -182,6 +185,77 @@ export function TaskModal({ open, onClose, onSalvar, editando, isAdmin, userId, 
                 <StyledSelect value={form.pessoa_id}
                   onValueChange={v => set('pessoa_id', v)} options={pessoaOptions} />
               </FormField>
+            )}
+          </div>
+
+          {/* Recorrência */}
+          <div style={{
+            display:       'flex',
+            flexDirection: 'column',
+            gap:           12,
+            paddingTop:    4,
+            borderTop:     '1px solid var(--color-border)',
+          }}>
+            {/* Toggle "Tarefa recorrente?" */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <span style={{ fontSize: 14, color: 'var(--color-text-1)' }}>
+                  Tarefa recorrente
+                </span>
+                <p style={{ fontSize: 12, color: 'var(--color-text-3)', margin: '2px 0 0' }}>
+                  Cria a próxima ao concluir
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => set('recorrencia', form.recorrencia ? null : 'semanal')}
+                style={{
+                  width:        40,
+                  height:       22,
+                  borderRadius: 11,
+                  border:       'none',
+                  cursor:       'pointer',
+                  background:   form.recorrencia ? 'var(--color-accent)' : 'var(--color-surface-2)',
+                  position:     'relative',
+                  transition:   'background 0.2s',
+                  flexShrink:   0,
+                }}
+              >
+                <div style={{
+                  position:     'absolute',
+                  top:          3,
+                  width:        16,
+                  height:       16,
+                  borderRadius: '50%',
+                  background:   form.recorrencia ? 'var(--color-bg)' : 'var(--color-text-3)',
+                  transition:   'left 0.2s',
+                  left:         form.recorrencia ? 21 : 3,
+                }} />
+              </button>
+            </div>
+
+            {/* Select de frequência + preview — só quando recorrente */}
+            {form.recorrencia && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <StyledSelect
+                  value={form.recorrencia}
+                  onValueChange={v => set('recorrencia', v)}
+                  options={RECORRENCIA_OPCOES}
+                />
+                {form.data_vencimento && (
+                  <p style={{ fontSize: 12, color: 'var(--color-text-2)', margin: 0 }}>
+                    Próxima ocorrência:{' '}
+                    <span style={{ color: 'var(--color-text-1)', fontWeight: 500 }}>
+                      {(() => {
+                        const proxima = calcularProximaData(form.data_vencimento, form.recorrencia)
+                        if (!proxima) return '–'
+                        return new Date(proxima + 'T00:00:00')
+                          .toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+                      })()}
+                    </span>
+                  </p>
+                )}
+              </div>
             )}
           </div>
 

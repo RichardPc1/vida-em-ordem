@@ -1,4 +1,4 @@
-import { Check, Trash2 } from 'lucide-react'
+import { Check, Trash2, RefreshCw } from 'lucide-react'
 import { PriorityBadge } from '../shared/PriorityBadge'
 import { PersonBadge }   from '../shared/PersonBadge'
 import { fmtDate, isAtrasada } from '../../lib/utils'
@@ -66,18 +66,31 @@ export function TaskCard({ tarefa, isAdmin, userId, onToggle, onEdit, onDelete, 
       </div>
 
       <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={onEdit}>
-        <p style={{
-          fontSize:       14,
-          fontWeight:     500,
-          margin:         '0 0 6px',
-          color:          'var(--color-text-1)',
-          textDecoration: concluida ? 'line-through' : 'none',
-          overflow:       'hidden',
-          textOverflow:   'ellipsis',
-          whiteSpace:     'nowrap',
-        }}>
-          {tarefa.titulo}
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, minWidth: 0 }}>
+          <p style={{
+            fontSize:       14,
+            fontWeight:     500,
+            margin:         0,
+            color:          'var(--color-text-1)',
+            textDecoration: concluida ? 'line-through' : 'none',
+            overflow:       'hidden',
+            textOverflow:   'ellipsis',
+            whiteSpace:     'nowrap',
+            flex:           1,
+            minWidth:       0,
+          }}>
+            {tarefa.titulo}
+          </p>
+          {tarefa.recorrencia && (
+            <RefreshCw
+              size={14}
+              color="var(--color-text-2)"
+              strokeWidth={2}
+              style={{ flexShrink: 0 }}
+              title={`Recorrência: ${tarefa.recorrencia}`}
+            />
+          )}
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>
