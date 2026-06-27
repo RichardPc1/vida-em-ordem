@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
+import { FileText, Loader2 } from 'lucide-react'
+import { gerarDocumentacaoPDF } from '../lib/documentacao'
 
 function InfoRow({ label, value }) {
   return (
@@ -18,6 +21,24 @@ export default function Perfil() {
   const { user, profile, signOut } = useAuth()
   const navigate = useNavigate()
   const [confirmandoSaida, setConfirmandoSaida] = useState(false)
+  const [gerandoPDF,      setGerandoPDF]      = useState(false)
+
+  async function handleDocumentacao() {
+    setGerandoPDF(true)
+    try {
+      await gerarDocumentacaoPDF()
+      toast.success('Documentação gerada com sucesso!', {
+        style: { borderColor: 'var(--color-accent)' },
+      })
+    } catch (err) {
+      console.error('[Perfil] gerarDocumentacaoPDF:', err)
+      toast.error('Erro ao gerar documentação.', {
+        style: { borderColor: 'var(--color-danger)' },
+      })
+    } finally {
+      setGerandoPDF(false)
+    }
+  }
 
   async function handleSignOut() {
     await signOut()
@@ -72,6 +93,27 @@ export default function Perfil() {
         <InfoRow label="Perfil" value={isAdmin ? 'Administrador' : 'Membro'} />
         <InfoRow label="Nome"  value={profile?.nome ?? '–'} />
       </div>
+
+      {/* Documentação */}
+      <button
+        onClick={handleDocumentacao}
+        disabled={gerandoPDF}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          padding: '12px 20px', borderRadius: 10, width: '100%',
+          background: 'transparent', border: '1px solid var(--color-border)',
+          color: 'var(--color-text-1)', fontSize: 14, fontWeight: 600,
+          cursor: gerandoPDF ? 'not-allowed' : 'pointer',
+          opacity: gerandoPDF ? 0.7 : 1, transition: 'all 0.15s',
+        }}
+        onMouseEnter={e => { if (!gerandoPDF) e.currentTarget.style.background = 'var(--color-surface-2)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+      >
+        {gerandoPDF
+          ? <><Loader2 size={16} className="animate-spin" /> Gerando...</>
+          : <><FileText size={16} /> Documentação</>
+        }
+      </button>
 
       {/* Logout */}
       {!confirmandoSaida ? (
