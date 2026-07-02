@@ -2,28 +2,16 @@ import { useState, useEffect, useCallback } from 'react'
 import { usePullToRefresh, PullRefreshIndicator } from '../hooks/usePullToRefresh'
 import {
   ChevronLeft, ChevronRight, Settings,
-  ShoppingCart, Car, Home, Heart, Smile, GraduationCap, Shirt, MoreHorizontal,
+  MoreHorizontal,
   PieChart as PieChartIcon,
 } from 'lucide-react'
 import { useOrcamento, CATEGORIAS_ORCAMENTO } from '../hooks/useOrcamento'
+import { ICONES_CATEGORIA } from '../lib/categoriasFinanceiro'
 import { fmtCurrency } from '../lib/utils'
 import { Skeleton } from '../components/shared/Skeleton'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '../components/ui/dialog'
-
-// ─── Constantes ──────────────────────────────────────────────────────────────
-
-const ICONES_CATEGORIA = {
-  alimentacao: ShoppingCart,
-  transporte:  Car,
-  moradia:     Home,
-  saude:       Heart,
-  lazer:       Smile,
-  educacao:    GraduationCap,
-  vestuario:   Shirt,
-  outros:      MoreHorizontal,
-}
 
 const btnNavStyle = {
   background:   'var(--color-surface-2)',

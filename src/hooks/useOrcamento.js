@@ -1,21 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { CATEGORIAS_SAIDA } from '../lib/categoriasFinanceiro'
 
 // ---------------------------------------------------------------------------
-// Constantes
+// CATEGORIAS_ORCAMENTO é idêntica a CATEGORIAS_SAIDA — re-exportada com o
+// nome legado para não quebrar Orcamento.jsx que importa deste hook.
 // ---------------------------------------------------------------------------
 
-export const CATEGORIAS_ORCAMENTO = [
-  { value: 'alimentacao', label: 'Alimentação' },
-  { value: 'transporte',  label: 'Transporte'  },
-  { value: 'moradia',     label: 'Moradia'     },
-  { value: 'saude',       label: 'Saúde'       },
-  { value: 'lazer',       label: 'Lazer'       },
-  { value: 'educacao',    label: 'Educação'    },
-  { value: 'vestuario',   label: 'Vestuário'   },
-  { value: 'outros',      label: 'Outros'      },
-]
+export const CATEGORIAS_ORCAMENTO = CATEGORIAS_SAIDA
 
 // ---------------------------------------------------------------------------
 // Helpers de data local (nunca usar toISOString — bug de fuso UTC)

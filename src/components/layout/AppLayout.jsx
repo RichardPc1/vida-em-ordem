@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { LayoutDashboard, ListChecks, Wallet, PieChart, Target, User, LogOut } from 'lucide-react'
+import { LayoutDashboard, ListChecks, Wallet, PieChart, Target, User, LogOut, CreditCard } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { Assistente } from '../shared/Assistente'
 import { getNomeExibicao } from '../../lib/utils'
@@ -10,9 +10,13 @@ const navItems = [
   { to: '/financeiro', label: 'Financeiro', icon: Wallet },
   { to: '/orcamento',  label: 'Orçamento',  icon: PieChart },
   { to: '/metas',      label: 'Metas',      icon: Target },
+  // Índice 5 em diante — fora do bottomNavItems (slice 0..4)
+  { to: '/cartoes',    label: 'Cartões',    icon: CreditCard },
   { to: '/perfil',     label: 'Perfil',     icon: User },
 ]
 
+// Bottom nav móvel: apenas os 5 primeiros itens (Dashboard → Metas)
+// Cartões e Perfil ficam exclusivos na sidebar desktop
 const bottomNavItems = navItems.slice(0, 5)
 
 const pageTitles = {
@@ -21,6 +25,7 @@ const pageTitles = {
   '/financeiro': 'Financeiro',
   '/orcamento':  'Orçamento',
   '/metas':      'Metas',
+  '/cartoes':    'Cartões',
   '/perfil':     'Perfil',
 }
 

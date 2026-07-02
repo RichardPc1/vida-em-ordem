@@ -15,6 +15,9 @@ import {
   CATEGORIAS_ENTRADA,
   CORES_CATEGORIA,
 } from '../hooks/useLancamentos'
+import { FORMAS_PAGAMENTO } from '../lib/categoriasFinanceiro'
+import { useCartoes } from '../hooks/useCartoes'
+import { useOutroProfile } from '../hooks/useOutroProfile'
 import { supabase } from '../lib/supabase'
 import { fmtCurrency } from '../lib/utils'
 import { gerarRelatorioPDF } from '../lib/relatorio'
@@ -57,14 +60,16 @@ function getTipoMes(mes) {
 // ---------------------------------------------------------------------------
 
 const FORM_INICIAL = {
-  tipo: 'saida',
-  descricao: '',
-  valor: '',
-  categoria: '',
-  data: dataLocalStr(new Date()),
-  pessoa_id: '',
-  eh_parcelado: false,
-  total_parcelas: 6,
+  tipo:            'saida',
+  descricao:       '',
+  valor:           '',
+  categoria:       '',
+  data:            dataLocalStr(new Date()),
+  pessoa_id:       '',
+  eh_parcelado:    false,
+  total_parcelas:  6,
+  forma_pagamento: '',
+  cartao_id:       '',
 }
 
 // ---------------------------------------------------------------------------
@@ -1046,6 +1051,9 @@ export default function Financeiro() {
     prepararDadosBarras,
   } = useLancamentos()
 
+  // Cartões para popular o select de cartão no modal de lançamento
+  const { cartoes: todosCartoes } = useCartoes()
+
   const [mes, setMes]                       = useState(new Date())
   const refreshFin = useCallback(() => fetchLancamentos({ mes }), [fetchLancamentos, mes])
   const { isRefreshing, pullY } = usePullToRefresh(refreshFin)
@@ -1054,7 +1062,7 @@ export default function Financeiro() {
   const [editando, setEditando]             = useState(null)
   const [modalMassaOpen, setModalMassaOpen] = useState(false)
   const [deletandoLanc, setDeletandoLanc]   = useState(null)
-  const [outroProfile, setOutroProfile]     = useState(null)
+  const outroProfile                        = useOutroProfile()
   const [form, setForm]                     = useState(FORM_INICIAL)
   const [salvando, setSalvando]             = useState(false)
   const [erro, setErro]                     = useState('')
@@ -1066,14 +1074,6 @@ export default function Financeiro() {
     fetchLancamentos({ mes })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, mes])
-
-  useEffect(() => {
-    if (!isAdmin || !user) return
-    supabase
-      .from('profiles').select('id, nome').neq('id', user.id).maybeSingle()
-      .then(({ data }) => setOutroProfile(data))
-      .catch(err => console.error('[Financeiro] outroProfile:', err.message))
-  }, [isAdmin, user?.id])
 
   useEffect(() => {
     if (modalOpen) {
@@ -1102,14 +1102,16 @@ export default function Financeiro() {
 
   function handleEdit(l) {
     setForm({
-      tipo: l.tipo,
-      descricao: l.descricao,
-      valor: String(l.valor),
-      categoria: l.categoria,
-      data: l.data,
-      pessoa_id: l.pessoa_id,
-      eh_parcelado: false,
-      total_parcelas: 6,
+      tipo:            l.tipo,
+      descricao:       l.descricao,
+      valor:           String(l.valor),
+      categoria:       l.categoria,
+      data:            l.data,
+      pessoa_id:       l.pessoa_id,
+      eh_parcelado:    false,
+      total_parcelas:  6,
+      forma_pagamento: l.forma_pagamento ?? '',
+      cartao_id:       l.cartao_id       ?? '',
     })
     setEditando(l)
     setModalOpen(true)
@@ -1124,10 +1126,18 @@ export default function Financeiro() {
     setSalvando(true)
     setErro('')
     try {
+      // Converte strings vazias para null antes de enviar ao hook
+      const payload = {
+        ...form,
+        valor:           valorNum,
+        pessoa_id:       form.pessoa_id       || user.id,
+        forma_pagamento: form.forma_pagamento || null,
+        cartao_id:       form.cartao_id       || null,
+      }
       if (editando) {
-        await atualizarLancamento(editando.id, { ...form, valor: valorNum, pessoa_id: form.pessoa_id || user.id })
+        await atualizarLancamento(editando.id, payload)
       } else {
-        await criarLancamento({ ...form, valor: valorNum, pessoa_id: form.pessoa_id || user.id })
+        await criarLancamento(payload)
       }
       setModalOpen(false)
     } catch {
@@ -1151,20 +1161,15 @@ export default function Financeiro() {
         supabase.from('metas').select('titulo, valor_alvo, valor_atual, prazo, status'),
       ])
 
-      const CATS      = ['alimentacao','transporte','moradia','saude','lazer','educacao','vestuario','outros']
-      const CAT_LABEL = {
-        alimentacao:'Alimentação', transporte:'Transporte', moradia:'Moradia',
-        saude:'Saúde', lazer:'Lazer', educacao:'Educação', vestuario:'Vestuário', outros:'Outros',
-      }
-      const orcamentosComGasto = CATS
-        .map(cat => {
+      const orcamentosComGasto = CATEGORIAS_SAIDA
+        .map(({ value: cat, label }) => {
           const orc        = orcResult.data?.find(o => o.categoria === cat)
           const valorLimite = Number(orc?.valor_limite ?? 0)
           const gasto       = lancamentos
             .filter(l => l.tipo === 'saida' && l.categoria === cat)
             .reduce((s, l) => s + Number(l.valor), 0)
           return {
-            categoria: cat, label: CAT_LABEL[cat], valorLimite, gasto,
+            categoria: cat, label, valorLimite, gasto,
             diferenca: valorLimite - gasto, percentual: valorLimite > 0 ? (gasto / valorLimite) * 100 : 0,
           }
         })
@@ -1194,9 +1199,15 @@ export default function Financeiro() {
   const totais      = calcularTotaisMes(mes)
   const dadosPizza  = prepararDadosPizza(mes)
   const dadosBarras = prepararDadosBarras()
-  const naoRealizados = lancamentos.filter(l => l.situacao !== 'realizado')
+  const naoRealizados    = lancamentos.filter(l => l.situacao !== 'realizado')
   const categoriaOptions = form.tipo === 'entrada' ? CATEGORIAS_ENTRADA : CATEGORIAS_SAIDA
-  const hintSituacao = form.data ? classificarSituacao(form.data) : null
+  const hintSituacao     = form.data ? classificarSituacao(form.data) : null
+
+  // Cartões disponíveis: ativos e pertencentes à mesma pessoa do lançamento
+  const pessoaIdSelecionada = form.pessoa_id || user?.id
+  const cartoesDisponiveis  = todosCartoes.filter(
+    c => c.ativo && c.pessoa_id === pessoaIdSelecionada,
+  )
 
   if (error) return (
     <div style={{ padding: '40px 0', textAlign: 'center' }}>
@@ -1389,10 +1400,83 @@ export default function Financeiro() {
               </Select>
             </FormField>
 
+            {/* Forma de pagamento */}
+            <FormField label="Forma de pagamento">
+              <Select
+                value={form.forma_pagamento}
+                onValueChange={v => setForm(f => ({
+                  ...f,
+                  forma_pagamento: v,
+                  // Limpa cartão se mudou para forma que não é crédito
+                  cartao_id: v !== 'credito' ? '' : f.cartao_id,
+                }))}
+              >
+                <SelectTrigger style={{
+                  background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
+                  borderRadius: 10,
+                  color: form.forma_pagamento ? 'var(--color-text-1)' : 'var(--color-text-3)',
+                  fontSize: 14, height: 38,
+                }}>
+                  <SelectValue placeholder="Selecionar (opcional)" />
+                </SelectTrigger>
+                <SelectContent style={{
+                  background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10,
+                }}>
+                  {FORMAS_PAGAMENTO.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value} style={{ color: 'var(--color-text-1)', fontSize: 14 }}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            {/* Cartão de crédito — condicional: só quando forma_pagamento === 'credito' */}
+            {form.forma_pagamento === 'credito' && (
+              <FormField label="Cartão">
+                {cartoesDisponiveis.length === 0 ? (
+                  <p style={{ fontSize: 12, color: 'var(--color-text-3)', margin: 0 }}>
+                    Nenhum cartão ativo encontrado para esta pessoa. Cadastre um em /cartões.
+                  </p>
+                ) : (
+                  <Select
+                    value={form.cartao_id}
+                    onValueChange={v => setForm(f => ({ ...f, cartao_id: v }))}
+                  >
+                    <SelectTrigger style={{
+                      background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
+                      borderRadius: 10,
+                      color: form.cartao_id ? 'var(--color-text-1)' : 'var(--color-text-3)',
+                      fontSize: 14, height: 38,
+                    }}>
+                      <SelectValue placeholder="Selecionar cartão" />
+                    </SelectTrigger>
+                    <SelectContent style={{
+                      background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 10,
+                    }}>
+                      {cartoesDisponiveis.map(c => (
+                        <SelectItem key={c.id} value={c.id} style={{ color: 'var(--color-text-1)', fontSize: 14 }}>
+                          {c.nome}{c.banco ? ` (${c.banco})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </FormField>
+            )}
+
             {/* De quem? — admin only */}
             {isAdmin && outroProfile && (
               <FormField label="De quem?">
-                <Select value={form.pessoa_id} onValueChange={v => setForm(f => ({ ...f, pessoa_id: v }))}>
+                <Select
+                  value={form.pessoa_id}
+                  onValueChange={v => setForm(f => ({
+                    ...f,
+                    pessoa_id: v,
+                    // Ao trocar de pessoa, reseta o cartão (pode não pertencer à nova pessoa)
+                    cartao_id: '',
+                  }))}
+                >
                   <SelectTrigger style={{
                     background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
                     borderRadius: 10, color: 'var(--color-text-1)', fontSize: 14, height: 38,

@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { CATEGORIAS_SAIDA, CATEGORIAS_ENTRADA } from './categoriasFinanceiro'
 
 // ---------------------------------------------------------------------------
 // Paleta — hex hardcoded (CSS vars não funcionam fora do browser DOM)
@@ -21,12 +22,12 @@ const MESES = [
   'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro',
 ]
 
-const ALL_CATS = {
-  alimentacao: 'Alimentação', transporte: 'Transporte',  moradia:      'Moradia',
-  saude:       'Saúde',       lazer:      'Lazer',        educacao:     'Educação',
-  vestuario:   'Vestuário',   outros:     'Outros',       salario:      'Salário',
-  freelance:   'Freelance',   investimento:'Investimento', aluguel:     'Aluguel',
-}
+// Mapa value→label para lookup rápido no PDF. Derivado da fonte única de
+// categorias — cobre saídas (14 categorias) e entradas (5 categorias).
+// "outros" aparece nas duas listas com o mesmo label, sem conflito.
+const ALL_CATS = Object.fromEntries(
+  [...CATEGORIAS_SAIDA, ...CATEGORIAS_ENTRADA].map(({ value, label }) => [value, label])
+)
 
 // ---------------------------------------------------------------------------
 // Helpers

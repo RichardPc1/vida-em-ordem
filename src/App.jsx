@@ -8,6 +8,7 @@ import Tarefas    from './pages/Tarefas'
 import Financeiro from './pages/Financeiro'
 import Orcamento  from './pages/Orcamento'
 import Metas      from './pages/Metas'
+import Cartoes    from './pages/Cartoes'
 import Perfil     from './pages/Perfil'
 
 function LoadingScreen() {
@@ -45,6 +46,7 @@ function AppRoutes() {
         <Route path="financeiro"      element={<Financeiro />} />
         <Route path="orcamento"       element={<Orcamento />} />
         <Route path="metas"           element={<Metas />} />
+        <Route path="cartoes"         element={<Cartoes />} />
         <Route path="perfil"          element={<Perfil />} />
       </Route>
 

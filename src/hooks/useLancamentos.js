@@ -2,45 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { classificarSituacao, recalcularSituacoes } from '../lib/classificador'
+import { CATEGORIAS_SAIDA, CATEGORIAS_ENTRADA, CORES_CATEGORIA } from '../lib/categoriasFinanceiro'
 
 // ---------------------------------------------------------------------------
-// Constantes de categorias
+// Re-exporta as constantes de categorias a partir da fonte única.
+// Financeiro.jsx e outros consumidores importam deste hook por compatibilidade:
+//   import { useLancamentos, CATEGORIAS_SAIDA, ... } from '../hooks/useLancamentos'
 // ---------------------------------------------------------------------------
-
-export const CATEGORIAS_SAIDA = [
-  { value: 'alimentacao', label: 'Alimentação' },
-  { value: 'transporte',  label: 'Transporte'  },
-  { value: 'moradia',     label: 'Moradia'     },
-  { value: 'saude',       label: 'Saúde'       },
-  { value: 'lazer',       label: 'Lazer'       },
-  { value: 'educacao',    label: 'Educação'    },
-  { value: 'vestuario',   label: 'Vestuário'   },
-  { value: 'outros',      label: 'Outros'      },
-]
-
-export const CATEGORIAS_ENTRADA = [
-  { value: 'salario',      label: 'Salário'      },
-  { value: 'freelance',    label: 'Freelance'    },
-  { value: 'investimento', label: 'Investimento' },
-  { value: 'aluguel',      label: 'Aluguel'      },
-  { value: 'outros',       label: 'Outros'       },
-]
-
-// Cores hardcoded para Recharts — CSS vars não funcionam em SVG fill
-export const CORES_CATEGORIA = {
-  alimentacao:  '#4ECDC4',
-  transporte:   '#FFB830',
-  moradia:      '#C8F04D',
-  saude:        '#FF6B9D',
-  lazer:        '#A78BFA',
-  educacao:     '#60A5FA',
-  vestuario:    '#F97316',
-  outros:       '#8A8A8A',
-  salario:      '#4ECDC4',
-  freelance:    '#A78BFA',
-  investimento: '#C8F04D',
-  aluguel:      '#60A5FA',
-}
+export { CATEGORIAS_SAIDA, CATEGORIAS_ENTRADA, CORES_CATEGORIA }
 
 // ---------------------------------------------------------------------------
 // Helper de data local (CRÍTICO — toISOString() usa UTC e causa bug no Brasil)
@@ -201,6 +170,9 @@ export function useLancamentos() {
         id_grupo_parcela: null,
         parcela_atual:    null,
         total_parcelas:   null,
+        // Campos opcionais do módulo de cartões — null quando não informados
+        cartao_id:        dados.cartao_id        ?? null,
+        forma_pagamento:  dados.forma_pagamento  ?? null,
       }
 
       const { error: err } = await supabase.from('lancamentos').insert(payload)
@@ -233,6 +205,9 @@ export function useLancamentos() {
           id_grupo_parcela: grupoId,
           parcela_atual:    i + 1,
           total_parcelas:   totalParcelas,
+          // Campos opcionais do módulo de cartões — replicados em todas as parcelas
+          cartao_id:        dados.cartao_id       ?? null,
+          forma_pagamento:  dados.forma_pagamento ?? null,
         }
       })
 
@@ -249,13 +224,16 @@ export function useLancamentos() {
 
   async function atualizarLancamento(id, dados) {
     const payload = {
-      tipo:      dados.tipo,
-      valor:     Number(dados.valor),
-      categoria: dados.categoria,
-      descricao: dados.descricao,
-      data:      dados.data,
-      pessoa_id: dados.pessoa_id,
-      situacao:  classificarSituacao(dados.data),
+      tipo:            dados.tipo,
+      valor:           Number(dados.valor),
+      categoria:       dados.categoria,
+      descricao:       dados.descricao,
+      data:            dados.data,
+      pessoa_id:       dados.pessoa_id,
+      situacao:        classificarSituacao(dados.data),
+      // Campos opcionais do módulo de cartões — undefined não altera o valor no banco
+      ...(dados.cartao_id       !== undefined && { cartao_id:       dados.cartao_id       ?? null }),
+      ...(dados.forma_pagamento !== undefined && { forma_pagamento: dados.forma_pagamento ?? null }),
     }
 
     const { error: err } = await supabase
