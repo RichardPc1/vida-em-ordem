@@ -244,6 +244,30 @@ export function useLancamentos() {
   }
 
   // -------------------------------------------------------------------------
+  // atualizarLancamento — edita campos básicos; recalcula situacao pela nova data
+  // -------------------------------------------------------------------------
+
+  async function atualizarLancamento(id, dados) {
+    const payload = {
+      tipo:      dados.tipo,
+      valor:     Number(dados.valor),
+      categoria: dados.categoria,
+      descricao: dados.descricao,
+      data:      dados.data,
+      pessoa_id: dados.pessoa_id,
+      situacao:  classificarSituacao(dados.data),
+    }
+
+    const { error: err } = await supabase
+      .from('lancamentos')
+      .update(payload)
+      .eq('id', id)
+
+    if (err) throw err
+    await fetchLancamentos(filtrosAtivosRef.current)
+  }
+
+  // -------------------------------------------------------------------------
   // deletarLancamento
   // -------------------------------------------------------------------------
 
@@ -365,6 +389,7 @@ export function useLancamentos() {
     error,
     fetchLancamentos,
     criarLancamento,
+    atualizarLancamento,
     deletarLancamento,
     confirmarLancamento,
     confirmarVarios,

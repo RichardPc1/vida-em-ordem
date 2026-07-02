@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import {
   Plus, ChevronLeft, ChevronRight, Trash2, FileDown, Loader2,
-  Clock, Check, ArrowUpCircle, ArrowDownCircle,
+  Clock, Check, ArrowUpCircle, ArrowDownCircle, Pencil,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, Tooltip,
@@ -419,7 +419,7 @@ function BarrasCard({ dados, loading }) {
 // LancamentoItem
 // ---------------------------------------------------------------------------
 
-function LancamentoItem({ lancamento: l, isAdmin, isLast, onDelete, onConfirmar }) {
+function LancamentoItem({ lancamento: l, isAdmin, isLast, onDelete, onConfirmar, onEdit }) {
   const [deletandoConf, setDeletandoConf] = useState(false)
   const [confirmando, setConfirmando]     = useState(false)
   const [confirmado, setConfirmado]       = useState(false)
@@ -536,6 +536,25 @@ function LancamentoItem({ lancamento: l, isAdmin, isLast, onDelete, onConfirmar 
         </button>
       )}
 
+      {/* Botão editar */}
+      {onEdit && (
+        <button
+          onClick={() => onEdit(l)}
+          title="Editar lançamento"
+          aria-label={`Editar: ${l.descricao}`}
+          style={{
+            background: 'transparent',
+            border: 'none', padding: 6, borderRadius: 6, cursor: 'pointer',
+            color: 'var(--color-text-3)',
+            display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-2)' }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-3)' }}
+        >
+          <Pencil size={14} />
+        </button>
+      )}
+
       {/* Botão delete */}
       <button
         onClick={handleClickDelete}
@@ -583,7 +602,7 @@ function labelData(dataStr) {
 // GruposData — renderiza itens agrupados por data
 // ---------------------------------------------------------------------------
 
-function GruposData({ lancamentos, isAdmin, onDelete, onConfirmar, isDashed }) {
+function GruposData({ lancamentos, isAdmin, onDelete, onConfirmar, onEdit, isDashed }) {
   const grupos = agruparPorData(lancamentos)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -609,6 +628,7 @@ function GruposData({ lancamentos, isAdmin, onDelete, onConfirmar, isDashed }) {
                 isLast={idx === items.length - 1}
                 onDelete={onDelete}
                 onConfirmar={onConfirmar}
+                onEdit={onEdit}
               />
             ))}
           </div>
@@ -842,7 +862,7 @@ function ConfirmarMassaModal({ open, onClose, lancamentos, onConfirmarVarios }) 
 // ListaLancamentos — divide em realizados e pendentes/previstos
 // ---------------------------------------------------------------------------
 
-function ListaLancamentos({ lancamentos, loading, isAdmin, onDelete, onConfirmar, onAbrirMassaModal, onConfirmarPorTipo, mes }) {
+function ListaLancamentos({ lancamentos, loading, isAdmin, onDelete, onConfirmar, onEdit, onAbrirMassaModal, onConfirmarPorTipo, mes }) {
   const [confirmandoTipo, setConfirmandoTipo] = useState(null)
 
   async function handleConfirmarPorTipo(tipo) {
@@ -918,6 +938,7 @@ function ListaLancamentos({ lancamentos, loading, isAdmin, onDelete, onConfirmar
             isAdmin={isAdmin}
             onDelete={onDelete}
             onConfirmar={null}
+            onEdit={onEdit}
             isDashed={false}
           />
         </div>
@@ -981,6 +1002,7 @@ function ListaLancamentos({ lancamentos, loading, isAdmin, onDelete, onConfirmar
             isAdmin={isAdmin}
             onDelete={onDelete}
             onConfirmar={onConfirmar}
+            onEdit={onEdit}
             isDashed={true}
           />
         </div>
@@ -1014,6 +1036,7 @@ export default function Financeiro() {
     error,
     fetchLancamentos,
     criarLancamento,
+    atualizarLancamento,
     deletarLancamento,
     confirmarLancamento,
     confirmarVarios,
@@ -1028,6 +1051,7 @@ export default function Financeiro() {
   const { isRefreshing, pullY } = usePullToRefresh(refreshFin)
   const [gerandoPDF, setGerandoPDF]         = useState(false)
   const [modalOpen, setModalOpen]           = useState(false)
+  const [editando, setEditando]             = useState(null)
   const [modalMassaOpen, setModalMassaOpen] = useState(false)
   const [deletandoLanc, setDeletandoLanc]   = useState(null)
   const [outroProfile, setOutroProfile]     = useState(null)
@@ -1052,9 +1076,15 @@ export default function Financeiro() {
   }, [isAdmin, user?.id])
 
   useEffect(() => {
-    if (!modalOpen) return
-    setErro('')
-    setForm({ ...FORM_INICIAL, pessoa_id: user?.id ?? '', data: dataLocalStr(new Date()) })
+    if (modalOpen) {
+      setErro('')
+      if (!editando) {
+        setForm({ ...FORM_INICIAL, pessoa_id: user?.id ?? '', data: dataLocalStr(new Date()) })
+      }
+    } else {
+      setEditando(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modalOpen])
 
   function anteriorMes() {
@@ -1070,6 +1100,21 @@ export default function Financeiro() {
     deletarLancamento(l.id, true)
   }
 
+  function handleEdit(l) {
+    setForm({
+      tipo: l.tipo,
+      descricao: l.descricao,
+      valor: String(l.valor),
+      categoria: l.categoria,
+      data: l.data,
+      pessoa_id: l.pessoa_id,
+      eh_parcelado: false,
+      total_parcelas: 6,
+    })
+    setEditando(l)
+    setModalOpen(true)
+  }
+
   async function handleSalvar() {
     if (!form.descricao.trim()) { setErro('Descrição obrigatória'); return }
     const valorNum = Number(form.valor.replace(',', '.'))
@@ -1079,7 +1124,11 @@ export default function Financeiro() {
     setSalvando(true)
     setErro('')
     try {
-      await criarLancamento({ ...form, valor: valorNum, pessoa_id: form.pessoa_id || user.id })
+      if (editando) {
+        await atualizarLancamento(editando.id, { ...form, valor: valorNum, pessoa_id: form.pessoa_id || user.id })
+      } else {
+        await criarLancamento({ ...form, valor: valorNum, pessoa_id: form.pessoa_id || user.id })
+      }
       setModalOpen(false)
     } catch {
       setErro('Erro ao salvar. Tente novamente.')
@@ -1238,6 +1287,7 @@ export default function Financeiro() {
           isAdmin={isAdmin}
           onDelete={handleDelete}
           onConfirmar={confirmarLancamento}
+          onEdit={handleEdit}
           onAbrirMassaModal={() => setModalMassaOpen(true)}
           onConfirmarPorTipo={confirmarPorTipo}
           mes={mes}
@@ -1252,7 +1302,7 @@ export default function Financeiro() {
         }}>
           <DialogHeader>
             <DialogTitle style={{ color: 'var(--color-text-1)', fontSize: 16, fontWeight: 600 }}>
-              Novo lançamento
+              {editando ? 'Editar lançamento' : 'Novo lançamento'}
             </DialogTitle>
           </DialogHeader>
 
@@ -1361,48 +1411,54 @@ export default function Financeiro() {
               </FormField>
             )}
 
-            {/* Toggle parcelado */}
-            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 14, color: 'var(--color-text-1)' }}>Parcelado?</span>
-                <button
-                  onClick={() => setForm(f => ({ ...f, eh_parcelado: !f.eh_parcelado }))}
-                  style={{
-                    width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer',
-                    background: form.eh_parcelado ? 'var(--color-accent)' : 'var(--color-surface-2)',
-                    position: 'relative', transition: 'background 0.2s',
-                  }}
-                  aria-label="Alternar parcelado"
-                >
-                  <div style={{
-                    position: 'absolute', top: 3, width: 16, height: 16, borderRadius: '50%',
-                    background: form.eh_parcelado ? 'var(--color-bg)' : 'var(--color-text-3)',
-                    transition: 'left 0.2s', left: form.eh_parcelado ? 21 : 3,
-                  }} />
-                </button>
-              </div>
-
-              {form.eh_parcelado && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-2)' }}>
-                    Parcelas (2–48)
-                  </label>
-                  <input
-                    type="number" min={2} max={48} value={form.total_parcelas}
-                    onChange={e => setForm(f => ({
-                      ...f, total_parcelas: Math.min(48, Math.max(2, Number(e.target.value))),
-                    }))}
-                    style={{ ...inputStyle, fontFamily: 'JetBrains Mono, monospace' }}
-                    onFocus={focusAcc} onBlur={blurBorder}
-                  />
-                  {form.valor && Number(form.valor.replace(',', '.')) > 0 && (
-                    <p style={{ fontSize: 12, color: 'var(--color-accent)', margin: 0, fontFamily: 'JetBrains Mono, monospace' }}>
-                      {form.total_parcelas}x de {fmtCurrency(Number(form.valor.replace(',', '.')) / form.total_parcelas)}
-                    </p>
-                  )}
+            {/* Toggle parcelado — oculto em modo edição */}
+            {!editando ? (
+              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 14, color: 'var(--color-text-1)' }}>Parcelado?</span>
+                  <button
+                    onClick={() => setForm(f => ({ ...f, eh_parcelado: !f.eh_parcelado }))}
+                    style={{
+                      width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer',
+                      background: form.eh_parcelado ? 'var(--color-accent)' : 'var(--color-surface-2)',
+                      position: 'relative', transition: 'background 0.2s',
+                    }}
+                    aria-label="Alternar parcelado"
+                  >
+                    <div style={{
+                      position: 'absolute', top: 3, width: 16, height: 16, borderRadius: '50%',
+                      background: form.eh_parcelado ? 'var(--color-bg)' : 'var(--color-text-3)',
+                      transition: 'left 0.2s', left: form.eh_parcelado ? 21 : 3,
+                    }} />
+                  </button>
                 </div>
-              )}
-            </div>
+
+                {form.eh_parcelado && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-2)' }}>
+                      Parcelas (2–48)
+                    </label>
+                    <input
+                      type="number" min={2} max={48} value={form.total_parcelas}
+                      onChange={e => setForm(f => ({
+                        ...f, total_parcelas: Math.min(48, Math.max(2, Number(e.target.value))),
+                      }))}
+                      style={{ ...inputStyle, fontFamily: 'JetBrains Mono, monospace' }}
+                      onFocus={focusAcc} onBlur={blurBorder}
+                    />
+                    {form.valor && Number(form.valor.replace(',', '.')) > 0 && (
+                      <p style={{ fontSize: 12, color: 'var(--color-accent)', margin: 0, fontFamily: 'JetBrains Mono, monospace' }}>
+                        {form.total_parcelas}x de {fmtCurrency(Number(form.valor.replace(',', '.')) / form.total_parcelas)}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : editando.eh_parcelado ? (
+              <p style={{ fontSize: 12, color: 'var(--color-text-2)', margin: 0 }}>
+                Este é uma parcela ({editando.parcela_atual}/{editando.total_parcelas}) — a edição afeta apenas esta ocorrência.
+              </p>
+            ) : null}
 
             {erro && <p style={{ fontSize: 13, color: 'var(--color-danger)', margin: 0 }}>{erro}</p>}
           </div>
@@ -1429,7 +1485,7 @@ export default function Financeiro() {
                 border: 'none', fontSize: 14, fontWeight: 600, transition: 'all 0.15s',
               }}
             >
-              {salvando ? 'Salvando...' : 'Salvar'}
+              {salvando ? 'Salvando...' : editando ? 'Salvar alterações' : 'Salvar'}
             </button>
           </DialogFooter>
         </DialogContent>
