@@ -1,6 +1,7 @@
 import {
   ShoppingCart, Car, Home, Heart, Smile, GraduationCap, Shirt, MoreHorizontal,
   Laptop, Repeat, Receipt, HandCoins, Zap, HeartHandshake,
+  CarFront, Calculator, Users, Landmark, Phone, Wallet, Dumbbell, Archive,
 } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -23,11 +24,24 @@ export const CATEGORIAS_SAIDA = [
   { value: 'emprestimos',        label: 'Empréstimos'          },
   { value: 'contas_casa',        label: 'Contas da casa'       },
   { value: 'ajuda_familiar',     label: 'Ajuda familiar'       },
+  { value: 'carro',              label: 'Carro'                },
+  { value: 'contabilidade',      label: 'Contabilidade'        },
+  { value: 'pagamento_pessoas',  label: 'Pagamento a pessoas'  },
+  { value: 'financiamento',      label: 'Financiamento'        },
+  { value: 'internet_telefone',  label: 'Internet e telefone'  },
+  { value: 'credito_especial',   label: 'Crédito especial'     },
+  { value: 'saude_bem_estar',    label: 'Saúde e bem-estar'    },
+  // saldo_inicial: representa a fatura de cartão aberta/não detalhada no
+  // início do uso do app (ver useCartoes.js) — não é um gasto novo real,
+  // mas precisa de categoria própria para não inflar "outros" nem duplicar
+  // relatórios de despesa por categoria.
+  { value: 'saldo_inicial',      label: 'Saldo inicial (fatura)' },
   { value: 'outros',             label: 'Outros'               },
 ]
 
 export const CATEGORIAS_ENTRADA = [
   { value: 'salario',      label: 'Salário'      },
+  { value: 'beneficio',    label: 'Benefício'    },
   { value: 'freelance',    label: 'Freelance'    },
   { value: 'investimento', label: 'Investimento' },
   { value: 'aluguel',      label: 'Aluguel'      },
@@ -53,9 +67,18 @@ export const CORES_CATEGORIA = {
   emprestimos:        '#FB923C',
   contas_casa:        '#FDE047',
   ajuda_familiar:     '#F472B6',
+  carro:              '#0EA5E9',
+  contabilidade:      '#14B8A6',
+  pagamento_pessoas:  '#9333EA',
+  financiamento:      '#CA8A04',
+  internet_telefone:  '#06B6D4',
+  credito_especial:   '#E11D48',
+  saude_bem_estar:    '#FB7185',
+  saldo_inicial:      '#64748B',
   outros:             '#8A8A8A',
   // categorias de entrada
   salario:            '#4ECDC4',
+  beneficio:          '#EF4444',
   freelance:          '#A78BFA',
   investimento:       '#C8F04D',
   aluguel:            '#60A5FA',
@@ -89,5 +112,13 @@ export const ICONES_CATEGORIA = {
   emprestimos:        HandCoins,
   contas_casa:        Zap,
   ajuda_familiar:     HeartHandshake,
+  carro:              CarFront,
+  contabilidade:      Calculator,
+  pagamento_pessoas:  Users,
+  financiamento:      Landmark,
+  internet_telefone:  Phone,
+  credito_especial:   Wallet,
+  saude_bem_estar:    Dumbbell,
+  saldo_inicial:      Archive,
   outros:             MoreHorizontal,
 }

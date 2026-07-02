@@ -22,11 +22,33 @@ export function Assistente() {
     { id: 'welcome', role: 'assistant', text: 'Olá! Como posso te ajudar?' },
   ])
 
-  const bottomRef      = useRef(null)
-  const textareaRef    = useRef(null)
-  const recognitionRef = useRef(null)
-  const suportaAudio   = typeof window !== 'undefined' &&
+  const bottomRef        = useRef(null)
+  const textareaRef      = useRef(null)
+  const recognitionRef   = useRef(null)
+  const gravacaoTimeoutRef = useRef(null)
+  const suportaAudio     = typeof window !== 'undefined' &&
     !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+
+  // Duração máxima de uma gravação — rede de segurança contra o bug conhecido
+  // do Web Speech API no mobile onde onend/onerror às vezes não disparam e o
+  // microfone fica ativo indefinidamente.
+  const GRAVACAO_MAX_MS = 20000
+
+  // Para a gravação e limpa todo o estado relacionado — usada tanto pelo botão
+  // de microfone quanto pelos "escapes" abaixo (fechar painel, trocar de aba/
+  // minimizar app, sair da sessão). Segura contra chamar stop() num
+  // reconhecimento que já não está ativo.
+  function pararGravacao() {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch { /* já parado */ }
+    }
+    if (gravacaoTimeoutRef.current) {
+      clearTimeout(gravacaoTimeoutRef.current)
+      gravacaoTimeoutRef.current = null
+    }
+    setGravando(false)
+    setInterimText('')
+  }
 
   // Atualiza saudação quando profile carrega
   useEffect(() => {
@@ -62,11 +84,28 @@ export function Assistente() {
         setInterimText(interim)
       }
     }
-    r.onend   = () => { setGravando(false); setInterimText('') }
-    r.onerror = () => { setGravando(false); setInterimText('') }
+    r.onend   = () => pararGravacao()
+    r.onerror = () => pararGravacao()
 
     recognitionRef.current = r
-    return () => r.abort()
+    // Sessão terminando (logout navega pra fora do AppLayout e desmonta este
+    // componente, ou o usuário fecha a aba) — garante que o mic não fica
+    // preso ativo depois que a UI já sumiu.
+    return () => pararGravacao()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Minimizar o app / trocar de aba — para a gravação assim que a página
+  // deixa de estar visível, em vez de deixar o mic escutando em background.
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.hidden) pararGravacao()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('pagehide', pararGravacao)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('pagehide', pararGravacao)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll automático para a última mensagem
@@ -82,12 +121,24 @@ export function Assistente() {
   function toggleGravacao() {
     if (!recognitionRef.current) return
     if (gravando) {
-      recognitionRef.current.stop()
+      pararGravacao()
     } else {
       setInterimText('')
       recognitionRef.current.start()
       setGravando(true)
+      gravacaoTimeoutRef.current = setTimeout(() => {
+        pararGravacao()
+        toast.error('Gravação encerrada automaticamente (20s)', { style: { borderColor: 'var(--color-warning)' } })
+      }, GRAVACAO_MAX_MS)
     }
+  }
+
+  // Fecha o painel do assistente — usada por todos os pontos de saída
+  // (botão X, overlay, FAB) para garantir que "minimizar o chat" sempre
+  // encerra uma gravação em andamento junto.
+  function fecharPainel() {
+    pararGravacao()
+    setAberto(false)
   }
 
   async function buildContexto() {
@@ -103,13 +154,16 @@ export function Assistente() {
         .eq('status', 'pendente')
         .order('data_vencimento', { ascending: true, nullsFirst: false })
         .limit(5),
+      // Sem .limit() aqui: os totais de Realizado/Previsto abaixo precisam do
+      // mês inteiro, senão sub-contam em meses com mais lançamentos que o
+      // limite (ex.: julho/2026 já passa de 20 com o cartão + fixas). O que
+      // vai pro prompt fica curto mesmo assim — só um slice(0, 5) depois.
       supabase
         .from('lancamentos')
         .select('id, descricao, valor, tipo, data, situacao')
         .gte('data', inicio)
         .lte('data', fimStr)
-        .order('data', { ascending: false })
-        .limit(20),
+        .order('data', { ascending: false }),
     ])
 
     const todosLanc    = lancRes.data ?? []
@@ -230,7 +284,7 @@ export function Assistente() {
     if (!texto || carregando) return
 
     // Para gravação se estiver ativa
-    if (gravando) recognitionRef.current?.stop()
+    if (gravando) pararGravacao()
 
     setInput('')
     setMsgs(m => [...m, { id: Date.now(), role: 'user', text: texto }])
@@ -273,13 +327,13 @@ export function Assistente() {
         <div
           className="fixed inset-0 z-40"
           style={{ background: 'rgba(0,0,0,0.45)' }}
-          onClick={() => setAberto(false)}
+          onClick={fecharPainel}
         />
       )}
 
       {/* FAB — mobile: acima do BottomNav (80px); desktop: 32px da borda */}
       <button
-        onClick={() => setAberto(v => !v)}
+        onClick={() => (aberto ? fecharPainel() : setAberto(true))}
         className="fixed bottom-[88px] right-4 md:bottom-8 md:right-8 z-40"
         style={{
           width:          56,
@@ -326,7 +380,7 @@ export function Assistente() {
             </span>
           </div>
           <button
-            onClick={() => setAberto(false)}
+            onClick={fecharPainel}
             style={{
               background: 'transparent', border: 'none', padding: 4,
               borderRadius: 6, cursor: 'pointer', color: 'var(--color-text-2)',
