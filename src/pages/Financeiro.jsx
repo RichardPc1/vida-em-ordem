@@ -181,7 +181,7 @@ function TotalCard({ label, value, color, loading }) {
       background: 'var(--color-surface)',
       border: '1px solid var(--color-border)',
       borderRadius: 16,
-      padding: 24,
+      padding: 'clamp(14px, 4vw, 24px)',
     }}>
       <p style={{
         fontSize: 12, fontWeight: 500, color: 'var(--color-text-2)',
@@ -197,7 +197,8 @@ function TotalCard({ label, value, color, loading }) {
       ) : (
         <p style={{
           fontFamily: 'JetBrains Mono, monospace',
-          fontSize: 28, fontWeight: 500, color, margin: 0, lineHeight: 1.1,
+          fontSize: 'clamp(15px, 4.5vw, 28px)', fontWeight: 500, color, margin: 0, lineHeight: 1.1,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {fmtCurrency(value)}
         </p>
@@ -456,127 +457,146 @@ function LancamentoItem({ lancamento: l, isAdmin, isLast, onDelete, onConfirmar,
   return (
     <div style={{
       display: 'flex',
-      alignItems: 'center',
-      gap: 12,
-      padding: '12px 16px',
+      alignItems: 'flex-start',
+      gap: 10,
+      padding: '10px 14px',
       borderBottom: isLast ? 'none' : '1px solid var(--color-border)',
       transition: 'opacity 0.3s',
       opacity: confirmado ? 0.4 : 1,
     }}>
       {/* Ícone da categoria */}
       <div style={{
-        width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
         background: `${cor}20`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        marginTop: 2,
       }}>
-        <div style={{ width: 10, height: 10, borderRadius: '50%', background: cor }} />
+        <div style={{ width: 9, height: 9, borderRadius: '50%', background: cor }} />
       </div>
 
-      {/* Descrição + badges */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      {/* Conteúdo empilhado verticalmente */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+
+        {/* Linha 1: descrição (até 2 linhas antes de cortar) */}
         <p style={{
           fontSize: 14, fontWeight: 500, color: 'var(--color-text-1)',
-          margin: '0 0 3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          margin: 0,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          whiteSpace: 'normal',
         }}>
           {l.descricao}
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{catLabel}</span>
 
+        {/* Linha 2: categoria */}
+        <span style={{ fontSize: 12, color: 'var(--color-text-2)' }}>{catLabel}</span>
+
+        {/* Linha 3: badge parcela + valor */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
           {l.eh_parcelado && (
             <span style={{
               fontSize: 11, fontFamily: 'JetBrains Mono, monospace',
               background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
-              padding: '1px 6px', borderRadius: 6, color: 'var(--color-text-2)',
+              padding: '1px 6px', borderRadius: 6, color: 'var(--color-text-2)', flexShrink: 0,
             }}>
               {l.parcela_atual}/{l.total_parcelas}
             </span>
           )}
+          <span style={{
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: 14, fontWeight: 600,
+            color: isEntrada ? 'var(--color-success)' : 'var(--color-danger)',
+            opacity: isNaoRealiz ? 0.7 : 1,
+          }}>
+            {isEntrada ? '+' : '-'}{fmtCurrency(l.valor)}
+          </span>
+        </div>
 
-          {isAdmin && l.profiles?.nome && (
-            <span style={{
-              fontSize: 11, color: 'var(--color-text-2)',
-              background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
-              padding: '1px 6px', borderRadius: 6,
-            }}>
-              @{l.profiles.nome.split(' ')[0].toLowerCase()}
-            </span>
-          )}
+        {/* Linha 4: badges pessoa/situação à esquerda + botões à direita */}
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', gap: 8, marginTop: 2,
+        }}>
+          {/* Badges à esquerda */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {isAdmin && l.profiles?.nome && (
+              <span style={{
+                fontSize: 11, color: 'var(--color-text-2)',
+                background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
+                padding: '1px 6px', borderRadius: 6,
+              }}>
+                @{l.profiles.nome.split(' ')[0].toLowerCase()}
+              </span>
+            )}
+            {isNaoRealiz && <BadgeSituacao situacao={l.situacao} />}
+          </div>
 
-          {isNaoRealiz && <BadgeSituacao situacao={l.situacao} />}
+          {/* Botões à direita */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+            {/* Botão confirmar — só em não-realizados */}
+            {isNaoRealiz && onConfirmar && (
+              <button
+                onClick={handleConfirmar}
+                disabled={confirmando}
+                title="Confirmar lançamento"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '4px 8px', borderRadius: 7, border: 'none',
+                  background: 'var(--color-accent)', color: '#0F0F0F',
+                  fontSize: 11, fontWeight: 600, cursor: confirmando ? 'not-allowed' : 'pointer',
+                  flexShrink: 0, transition: 'background 0.15s', whiteSpace: 'nowrap',
+                }}
+                onMouseEnter={e => { if (!confirmando) e.currentTarget.style.background = 'var(--color-accent-2)' }}
+                onMouseLeave={e => { if (!confirmando) e.currentTarget.style.background = 'var(--color-accent)' }}
+              >
+                {confirmando
+                  ? <Loader2 size={10} className="animate-spin" />
+                  : <Check size={10} />
+                }
+                Confirmar
+              </button>
+            )}
+
+            {/* Botão editar */}
+            {onEdit && (
+              <button
+                onClick={() => onEdit(l)}
+                title="Editar lançamento"
+                aria-label={`Editar: ${l.descricao}`}
+                style={{
+                  background: 'transparent',
+                  border: 'none', padding: 5, borderRadius: 6, cursor: 'pointer',
+                  color: 'var(--color-text-3)',
+                  display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-2)' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-3)' }}
+              >
+                <Pencil size={14} />
+              </button>
+            )}
+
+            {/* Botão delete */}
+            <button
+              onClick={handleClickDelete}
+              onBlur={() => setDeletandoConf(false)}
+              title={deletandoConf ? 'Clique para confirmar' : 'Deletar'}
+              aria-label={`Deletar: ${l.descricao}`}
+              style={{
+                background: deletandoConf ? 'rgba(255,92,92,0.1)' : 'transparent',
+                border: 'none', padding: 5, borderRadius: 6, cursor: 'pointer',
+                color: deletandoConf ? 'var(--color-danger)' : 'var(--color-text-3)',
+                display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (!deletandoConf) e.currentTarget.style.color = 'var(--color-danger)' }}
+              onMouseLeave={e => { if (!deletandoConf) e.currentTarget.style.color = 'var(--color-text-3)' }}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* Valor */}
-      <span style={{
-        fontFamily: 'JetBrains Mono, monospace',
-        fontSize: 15, fontWeight: 500,
-        color: isEntrada ? 'var(--color-success)' : 'var(--color-danger)',
-        whiteSpace: 'nowrap',
-        opacity: isNaoRealiz ? 0.7 : 1,
-      }}>
-        {isEntrada ? '+' : '-'}{fmtCurrency(l.valor)}
-      </span>
-
-      {/* Botão confirmar — só em não-realizados */}
-      {isNaoRealiz && onConfirmar && (
-        <button
-          onClick={handleConfirmar}
-          disabled={confirmando}
-          title="Confirmar lançamento"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 4,
-            padding: '5px 10px', borderRadius: 8, border: 'none',
-            background: 'var(--color-accent)', color: '#0F0F0F',
-            fontSize: 12, fontWeight: 600, cursor: confirmando ? 'not-allowed' : 'pointer',
-            flexShrink: 0, transition: 'background 0.15s', whiteSpace: 'nowrap',
-          }}
-          onMouseEnter={e => { if (!confirmando) e.currentTarget.style.background = 'var(--color-accent-2)' }}
-          onMouseLeave={e => { if (!confirmando) e.currentTarget.style.background = 'var(--color-accent)' }}
-        >
-          {confirmando
-            ? <Loader2 size={11} className="animate-spin" />
-            : <Check size={11} />
-          }
-          Confirmar
-        </button>
-      )}
-
-      {/* Botão editar */}
-      {onEdit && (
-        <button
-          onClick={() => onEdit(l)}
-          title="Editar lançamento"
-          aria-label={`Editar: ${l.descricao}`}
-          style={{
-            background: 'transparent',
-            border: 'none', padding: 6, borderRadius: 6, cursor: 'pointer',
-            color: 'var(--color-text-3)',
-            display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-2)' }}
-          onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-3)' }}
-        >
-          <Pencil size={14} />
-        </button>
-      )}
-
-      {/* Botão delete */}
-      <button
-        onClick={handleClickDelete}
-        onBlur={() => setDeletandoConf(false)}
-        title={deletandoConf ? 'Clique para confirmar' : 'Deletar'}
-        aria-label={`Deletar: ${l.descricao}`}
-        style={{
-          background: deletandoConf ? 'rgba(255,92,92,0.1)' : 'transparent',
-          border: 'none', padding: 6, borderRadius: 6, cursor: 'pointer',
-          color: deletandoConf ? 'var(--color-danger)' : 'var(--color-text-3)',
-          display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'all 0.15s',
-        }}
-        onMouseEnter={e => { if (!deletandoConf) e.currentTarget.style.color = 'var(--color-danger)' }}
-        onMouseLeave={e => { if (!deletandoConf) e.currentTarget.style.color = 'var(--color-text-3)' }}
-      >
-        <Trash2 size={14} />
-      </button>
     </div>
   )
 }
@@ -1066,6 +1086,8 @@ export default function Financeiro() {
   const [form, setForm]                     = useState(FORM_INICIAL)
   const [salvando, setSalvando]             = useState(false)
   const [erro, setErro]                     = useState('')
+  const [escopoParcela, setEscopoParcela]   = useState('esta')
+  const [situacaoManual, setSituacaoManual] = useState('automatica')
 
   const tipoMes = getTipoMes(mes)
 
@@ -1078,8 +1100,12 @@ export default function Financeiro() {
   useEffect(() => {
     if (modalOpen) {
       setErro('')
+      setEscopoParcela('esta')
       if (!editando) {
         setForm({ ...FORM_INICIAL, pessoa_id: user?.id ?? '', data: dataLocalStr(new Date()) })
+        setSituacaoManual('automatica')
+      } else {
+        setSituacaoManual(editando.situacao === 'realizado' ? 'realizado' : 'automatica')
       }
     } else {
       setEditando(null)
@@ -1133,15 +1159,24 @@ export default function Financeiro() {
         pessoa_id:       form.pessoa_id       || user.id,
         forma_pagamento: form.forma_pagamento || null,
         cartao_id:       form.cartao_id       || null,
+        situacaoManual,
       }
       if (editando) {
-        await atualizarLancamento(editando.id, payload)
+        if (editando.eh_parcelado) {
+          payload.eh_parcelado     = true
+          payload.id_grupo_parcela = editando.id_grupo_parcela
+          payload.parcela_atual    = editando.parcela_atual
+        }
+        await atualizarLancamento(editando.id, payload, escopoParcela)
+        toast.success('Lançamento atualizado!', { style: { borderColor: 'var(--color-accent)' } })
       } else {
         await criarLancamento(payload)
+        toast.success('Lançamento criado!', { style: { borderColor: 'var(--color-accent)' } })
       }
       setModalOpen(false)
     } catch {
       setErro('Erro ao salvar. Tente novamente.')
+      toast.error('Erro ao salvar lançamento', { style: { borderColor: 'var(--color-danger)' } })
     } finally {
       setSalvando(false)
     }
@@ -1365,7 +1400,11 @@ export default function Financeiro() {
                 <input
                   type="date" value={form.data}
                   onChange={e => setForm(f => ({ ...f, data: e.target.value }))}
-                  style={{ ...inputStyle, colorScheme: 'dark' }}
+                  style={{
+                    ...inputStyle, colorScheme: 'dark',
+                    opacity: (editando?.eh_parcelado && escopoParcela !== 'esta') ? 0.4 : 1,
+                  }}
+                  disabled={editando?.eh_parcelado && escopoParcela !== 'esta'}
                   onFocus={focusAcc} onBlur={blurBorder}
                 />
                 {hintSituacao && (
@@ -1495,6 +1534,42 @@ export default function Financeiro() {
               </FormField>
             )}
 
+            {/* Status manual — somente em edição */}
+            {editando && (
+              <FormField label="Status">
+                <div style={{
+                  display: 'flex', background: 'var(--color-surface-2)',
+                  borderRadius: 10, padding: 4, gap: 4,
+                }}>
+                  {[
+                    { value: 'automatica', label: 'Automático' },
+                    { value: 'realizado',  label: 'Confirmado' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setSituacaoManual(opt.value)}
+                      disabled={editando?.eh_parcelado && escopoParcela !== 'esta'}
+                      style={{
+                        flex: 1, padding: '8px', borderRadius: 8, border: 'none',
+                        cursor: (editando?.eh_parcelado && escopoParcela !== 'esta') ? 'not-allowed' : 'pointer',
+                        fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
+                        background: situacaoManual === opt.value ? 'var(--color-surface)' : 'transparent',
+                        color: situacaoManual === opt.value ? 'var(--color-text-1)' : 'var(--color-text-2)',
+                        opacity: (editando?.eh_parcelado && escopoParcela !== 'esta') ? 0.5 : 1,
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {editando?.eh_parcelado && escopoParcela !== 'esta' && (
+                  <p style={{ fontSize: 12, color: 'var(--color-text-3)', margin: '4px 0 0' }}>
+                    Não aplicável para múltiplas parcelas
+                  </p>
+                )}
+              </FormField>
+            )}
+
             {/* Toggle parcelado — oculto em modo edição */}
             {!editando ? (
               <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1539,9 +1614,35 @@ export default function Financeiro() {
                 )}
               </div>
             ) : editando.eh_parcelado ? (
-              <p style={{ fontSize: 12, color: 'var(--color-text-2)', margin: 0 }}>
-                Este é uma parcela ({editando.parcela_atual}/{editando.total_parcelas}) — a edição afeta apenas esta ocorrência.
-              </p>
+              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <p style={{ fontSize: 13, color: 'var(--color-text-2)', margin: 0 }}>
+                  Esta é a parcela {editando.parcela_atual} de {editando.total_parcelas}. Selecione o escopo da edição:
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[
+                    { value: 'esta',    label: 'Somente esta parcela' },
+                    { value: 'futuras', label: 'Esta e as próximas' },
+                    { value: 'todas',   label: 'Todas as parcelas' },
+                  ].map(opt => (
+                    <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="escopoParcela"
+                        value={opt.value}
+                        checked={escopoParcela === opt.value}
+                        onChange={() => setEscopoParcela(opt.value)}
+                        style={{ accentColor: 'var(--color-accent)', width: 15, height: 15 }}
+                      />
+                      <span style={{ fontSize: 14, color: 'var(--color-text-1)' }}>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {escopoParcela !== 'esta' && (
+                  <p style={{ fontSize: 12, color: 'var(--color-text-3)', margin: 0 }}>
+                    Os campos Data e Status não se aplicam a múltiplas parcelas e serão ignorados.
+                  </p>
+                )}
+              </div>
             ) : null}
 
             {erro && <p style={{ fontSize: 13, color: 'var(--color-danger)', margin: 0 }}>{erro}</p>}

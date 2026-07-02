@@ -37,7 +37,7 @@ function Card({ children, className = '', style = {} }) {
 
 function MetricCard({ label, value, valueColor, loading, mono = true }) {
   return (
-    <Card>
+    <Card style={{ padding: 'clamp(14px, 4vw, 24px)' }}>
       <p style={{
         fontSize:       12,
         fontWeight:     500,
@@ -52,12 +52,15 @@ function MetricCard({ label, value, valueColor, loading, mono = true }) {
         <Skeleton height={34} width="65%" radius={6} />
       ) : (
         <p style={{
-          fontFamily: mono ? 'JetBrains Mono, monospace' : 'Inter, sans-serif',
-          fontSize:   28,
-          fontWeight: 500,
-          color:      valueColor,
-          margin:     0,
-          lineHeight: 1.1,
+          fontFamily:   mono ? 'JetBrains Mono, monospace' : 'Inter, sans-serif',
+          fontSize:     'clamp(14px, 3.4vw, 28px)',
+          fontWeight:   500,
+          color:        valueColor,
+          margin:       0,
+          lineHeight:   1.1,
+          overflow:     'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace:   'nowrap',
         }}>
           {value}
         </p>
@@ -422,7 +425,7 @@ function SaldoCard({ saldoRealizado, saldoPrevisto, saidasPrevistas, loading }) 
     : 'var(--color-text-2)'
 
   return (
-    <Card>
+    <Card style={{ padding: 'clamp(14px, 4vw, 24px)' }}>
       <p style={{
         fontSize: 12, fontWeight: 500, color: 'var(--color-text-2)',
         margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.07em',
@@ -433,9 +436,10 @@ function SaldoCard({ saldoRealizado, saldoPrevisto, saidasPrevistas, loading }) 
         <Skeleton height={34} width="65%" radius={6} />
       ) : (
         <p style={{
-          fontFamily: 'JetBrains Mono, monospace',
-          fontSize: 28, fontWeight: 500, color: corRealizado,
-          margin: saidasPrevistas > 0 ? '0 0 12px' : 0, lineHeight: 1.1,
+          fontFamily:   'JetBrains Mono, monospace',
+          fontSize:     'clamp(14px, 3.4vw, 28px)', fontWeight: 500, color: corRealizado,
+          margin:       saidasPrevistas > 0 ? '0 0 12px' : 0, lineHeight: 1.1,
+          overflow:     'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {fmtCurrency(saldoRealizado)}
         </p>
@@ -450,9 +454,10 @@ function SaldoCard({ saldoRealizado, saldoPrevisto, saidasPrevistas, loading }) 
             Saldo previsto
           </p>
           <p style={{
-            fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 18, fontWeight: 500, color: corPrevisto,
-            margin: '0 0 4px', opacity: 0.6,
+            fontFamily:   'JetBrains Mono, monospace',
+            fontSize:     'clamp(12px, 2.6vw, 18px)', fontWeight: 500, color: corPrevisto,
+            margin:       '0 0 4px', opacity: 0.6,
+            overflow:     'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {fmtCurrency(saldoPrevisto)}
           </p>

@@ -219,29 +219,75 @@ export function useLancamentos() {
   }
 
   // -------------------------------------------------------------------------
-  // atualizarLancamento — edita campos básicos; recalcula situacao pela nova data
+  // atualizarLancamento — edita campos de um lançamento com suporte a parcelas
+  //
+  //   escopoParcela  'esta'    → atualiza só a linha clicada (default)
+  //                 'futuras'  → atualiza esta + parcelas seguintes do grupo
+  //                 'todas'    → atualiza todas as parcelas do grupo
+  //
+  // O escopo só tem efeito quando dados.eh_parcelado === true; caso contrário
+  // o comportamento é sempre 'esta'.
   // -------------------------------------------------------------------------
 
-  async function atualizarLancamento(id, dados) {
-    const payload = {
-      tipo:            dados.tipo,
-      valor:           Number(dados.valor),
-      categoria:       dados.categoria,
-      descricao:       dados.descricao,
-      data:            dados.data,
-      pessoa_id:       dados.pessoa_id,
-      situacao:        classificarSituacao(dados.data),
-      // Campos opcionais do módulo de cartões — undefined não altera o valor no banco
-      ...(dados.cartao_id       !== undefined && { cartao_id:       dados.cartao_id       ?? null }),
-      ...(dados.forma_pagamento !== undefined && { forma_pagamento: dados.forma_pagamento ?? null }),
+  async function atualizarLancamento(id, dados, escopoParcela = 'esta') {
+    // Normaliza escopo: parcelado não ativo → sempre 'esta'
+    const escopo = dados.eh_parcelado ? escopoParcela : 'esta'
+
+    if (escopo === 'esta') {
+      // --- Payload individual: inclui data e situacao (calculada ou manual) ---
+      const situacaoFinal = dados.situacaoManual === 'realizado'
+        ? 'realizado'
+        : classificarSituacao(dados.data)
+
+      const payload = {
+        tipo:      dados.tipo,
+        valor:     Number(dados.valor),
+        categoria: dados.categoria,
+        descricao: dados.descricao,
+        data:      dados.data,
+        pessoa_id: dados.pessoa_id,
+        situacao:  situacaoFinal,
+        // Campos opcionais do módulo de cartões — undefined não altera o valor no banco
+        ...(dados.cartao_id       !== undefined && { cartao_id:       dados.cartao_id       ?? null }),
+        ...(dados.forma_pagamento !== undefined && { forma_pagamento: dados.forma_pagamento ?? null }),
+        // confirmado_em só é preenchido ao marcar como realizado manualmente
+        ...(dados.situacaoManual === 'realizado' && { confirmado_em: new Date().toISOString() }),
+      }
+
+      const { error: err } = await supabase
+        .from('lancamentos')
+        .update(payload)
+        .eq('id', id)
+
+      if (err) throw err
+    } else {
+      // --- Payload compartilhado: sem data, situacao nem confirmado_em ---
+      // Cada parcela mantém sua própria data; situacao é recalculada via
+      // recalcularSituacoes() no próximo fetchLancamentos.
+      const payloadGrupo = {
+        tipo:      dados.tipo,
+        valor:     Number(dados.valor),
+        categoria: dados.categoria,
+        descricao: dados.descricao,
+        pessoa_id: dados.pessoa_id,
+        // Campos opcionais do módulo de cartões — undefined não altera o valor no banco
+        ...(dados.cartao_id       !== undefined && { cartao_id:       dados.cartao_id       ?? null }),
+        ...(dados.forma_pagamento !== undefined && { forma_pagamento: dados.forma_pagamento ?? null }),
+      }
+
+      let query = supabase
+        .from('lancamentos')
+        .update(payloadGrupo)
+        .eq('id_grupo_parcela', dados.id_grupo_parcela)
+
+      if (escopo === 'futuras') {
+        query = query.gte('parcela_atual', dados.parcela_atual)
+      }
+
+      const { error: err } = await query
+      if (err) throw err
     }
 
-    const { error: err } = await supabase
-      .from('lancamentos')
-      .update(payload)
-      .eq('id', id)
-
-    if (err) throw err
     await fetchLancamentos(filtrosAtivosRef.current)
   }
 
